@@ -1,0 +1,6 @@
+C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:110:13:SpindleFunction	28
+C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:216:26:GetCommandEvent	3
+C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:240:13:ReleaseCommandEvent	4
+C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:261:12:SpindleConsoleFunction	9
+C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:344:13:SpindleRegisterBasicCommands	1
+C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:352:17:SPINDLE_CreateInstance	25
