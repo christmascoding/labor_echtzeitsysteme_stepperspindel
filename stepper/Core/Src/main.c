@@ -23,7 +23,9 @@
 /* USER CODE BEGIN Includes */
 #include "FreeRTOS.h"
 #include "task.h"
+#include "timers.h" // Include the header for TimerCallbackFunction_t
 #include "stdio.h"
+#include "LibL6474.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -131,18 +133,144 @@ static int CapabilityFunc( int argc, char** argv, void* ctx )
 //	return _write(2, pBuffer, num);
 //}
 /* USER CODE END 0 */
+// Custom functions for stepper
+static void* StepLibraryMalloc(unsigned int size)
+{
+  return pvPortMalloc(size); // Use FreeRTOS memory allocation
+}
 
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
+static void StepLibraryFree(const void* const pMem)
+{
+  vPortFree((void*)pMem); // Use FreeRTOS memory deallocation
+}
+
+static int StepDriverSpiTransfer(void* pIO, char* pRX, const char* pTX, unsigned int length)
+{
+  (void)pIO; // Unused in this implementation
+  HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_RESET); // Select the SPI device
+
+  if (HAL_SPI_TransmitReceive(&hspi1, (uint8_t*)pTX, (uint8_t*)pRX, length, HAL_MAX_DELAY) != HAL_OK)
+  {
+    HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET); // Deselect the SPI device
+    return -1; // Error during SPI transfer
+  }
+
+  HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET); // Deselect the SPI device
+  return 0; // Success
+}
+
+static void StepDriverReset(void* pGPO, const int ena)
+{
+  (void)pGPO; // Unused in this implementation
+  HAL_GPIO_WritePin(STEP_RSTN_GPIO_Port, STEP_RSTN_Pin, ena ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
+
+static void StepLibraryDelay(unsigned int ms)
+{
+  vTaskDelay(pdMS_TO_TICKS(ms)); // Delay using FreeRTOS
+}
+
+static int StepTimerAsync(void* pPWM, int dir, unsigned int numPulses, void (*doneClb)(L6474_Handle_t), L6474_Handle_t h)
+{
+  (void)pPWM; // Unused in this implementation
+  (void)dir;  // Direction handling not implemented here
+  (void)h;    // Handle unused in this implementation
+
+  // Example implementation for asynchronous stepping
+  TimerHandle_t timer = xTimerCreate("StepTimer", pdMS_TO_TICKS(1), pdTRUE, (void*)doneClb, (TimerCallbackFunction_t)doneClb);
+  if (timer == NULL)
+  {
+    return -1; // Failed to create timer
+  }
+
+  if (xTimerStart(timer, 0) != pdPASS)
+  {
+    xTimerDelete(timer, 0); // Cleanup if start fails
+    return -1; // Failed to start timer
+  }
+
+  return 0; // Success
+}
+
+static int StepTimerCancelAsync(void* pPWM)
+{
+  (void)pPWM; // Unused in this implementation
+  // Placeholder for canceling asynchronous step operation
+  return 0; // Success
+}
+
+void StepperTask(void *pvParameters)
+  {
+      // Pass all function pointers required by the stepper library
+      // to a separate platform abstraction structure
+      L6474x_Platform_t p;
+      p.malloc     = StepLibraryMalloc;
+      p.free       = StepLibraryFree;
+      p.transfer   = StepDriverSpiTransfer;
+      p.reset      = StepDriverReset;
+      p.sleep      = StepLibraryDelay;
+      p.stepAsync  = StepTimerAsync;
+      p.cancelStep = StepTimerCancelAsync;
+
+      // Define additional context pointers for the stepper driver
+      void* pIO = NULL;  // Placeholder for SPI IO context, if needed
+      void* pGPO = NULL; // Placeholder for GPIO context, if needed
+      void* pPWM = NULL; // Placeholder for PWM context, if needed
+
+      // Now create the handle
+      L6474_Handle_t h = L6474_CreateInstance(&p, pIO, pGPO, pPWM);
+
+      if (h == NULL) {
+          printf("Failed to create L6474 instance\r\n");
+          Error_Handler();
+      } else {
+          printf("Stepper motor instance created\r\n");
+      }
+      
+      int result = 0;
+      L6474_BaseParameter_t baseParam = {0}; // Initialize base parameter structure
+
+      // Set default base parameters
+      result |= L6474_SetBaseParameter(&baseParam);
+
+      // Initialize the driver with the base parameters
+      result |= L6474_Initialize(h, &baseParam);
+      result |= L6474_SetPowerOutputs(h, 1);
+
+      // In case we have no error, we can enable the drivers
+      // and then we step a bit
+      if (result == 0)
+      {
+        result |= L6474_StepIncremental(h, 1000);
+        if (result == 0)
+        {
+          printf("Stepper motor moved 1000 steps\r\n");
+        }
+        else
+        {
+          printf("Error during step operation\r\n");
+        }
+      }
+      else
+      {
+        // Error handling
+        printf("Error during initialization: %d\r\n", result);
+        Error_Handler();
+      }
+
+      // Delete the task after initialization
+      vTaskDelete(NULL);
+
+  }
+
+
 int main(void)
 {
 
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
-
+  
   /* MPU Configuration--------------------------------------------------------*/
   MPU_Config();
 
@@ -168,6 +296,14 @@ int main(void)
   MX_USART3_UART_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+
+
+  // Create the task
+  if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+      printf("Failed to create StepperTask\r\n");
+      Error_Handler();
+  }
+
   printf("Hallo Welt\r\n");
   (void)CapabilityFunc;
   vTaskStartScheduler();
