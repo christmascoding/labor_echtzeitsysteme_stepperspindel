@@ -1,0 +1,17 @@
+*.o
+*.elf
+*.hex
+*.bin
+*.map
+*.d
+*.lst
+*.lss
+*.srec
+*.sym
+*.bak
+*.dSYM
+*.swp
+*.swm
+*.swp
+*.swm
+*.swo
