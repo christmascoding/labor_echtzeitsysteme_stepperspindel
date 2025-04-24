@@ -199,6 +199,9 @@ static int StepTimerCancelAsync(void* pPWM)
   return 0; // Success
 }
 
+
+
+
 void StepperTask(void *pvParameters)
   {
       // Pass all function pointers required by the stepper library
@@ -228,7 +231,19 @@ void StepperTask(void *pvParameters)
       }
       
       int result = 0;
-      L6474_BaseParameter_t baseParam = {0}; // Initialize base parameter structure
+
+
+      //create base parameter structure
+      L6474_BaseParameter_t baseParam = {
+          .stepMode   = smMICRO8,        // Gute Balance zwischen Auflösung und Drehmoment
+          .OcdTh      = ocdth1125mA,     // Ca. 1.125 A als Überstromgrenze
+          .TimeOnMin  = 10,              // µs – Beispielwert, ggf. durch Tests optimieren
+          .TimeOffMin = 15,              // µs – Beispielwert, ggf. durch Tests optimieren
+          .TorqueVal  = 80,              // 80% des max. Drehmoments
+          .TFast      = 5                // µs – Schaltzeitoptimierung
+      };
+
+      //L6474_BaseParameter_t baseParam = {0}; // Initialize base parameter structure
 
       // Set default base parameters
       result |= L6474_SetBaseParameter(&baseParam);
