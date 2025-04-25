@@ -29,4 +29,4 @@ C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1152:5:L6474_GetStatus	24	static
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1196:5:L6474_GetState	16	static
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1211:5:L6474_StopMovement	16	static
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1252:5:L6474_StepIncremental	40	static
+C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1252:5:L6474_StepIncremental	24	static

@@ -35,7 +35,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+// fic
+void vStepperPulseTask(void* pvParameters);
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -143,21 +144,43 @@ static void StepLibraryFree(const void* const pMem)
 {
   vPortFree((void*)pMem); // Use FreeRTOS memory deallocation
 }
-
 static int StepDriverSpiTransfer(void* pIO, char* pRX, const char* pTX, unsigned int length)
 {
-  (void)pIO; // Unused in this implementation
-  HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_RESET); // Select the SPI device
+  for (unsigned int i = 0; i < length; i++) {
+    HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_RESET); // Select the SPI device
+    if (HAL_SPI_TransmitReceive(&hspi1, (uint8_t*)&pTX[i], (uint8_t*)&pRX[i], 1, HAL_MAX_DELAY) != HAL_OK) {
+      HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET); // Deselect the SPI device
+      return -1; // Error during SPI transfer
+    }
+    HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET); // Deselect the SPI device
+    //code for 800ns delay lol
+
+    // Calculate the clock speed in Hz
+    uint32_t clockSpeedHz = HAL_RCC_GetSysClockFreq();
+
+    // Calculate the number of NOPs needed for 800ns delay
+    // Each NOP takes 1 clock cycle, so calculate cycles for 800ns
+    uint32_t nopsNeeded = (clockSpeedHz / 1000000000) * 800;  
+
+    // Perform the NOPs
+    for (volatile uint32_t i = 0; i < nopsNeeded + 1; i++) { //+1 for safety (better wait longer!)
+      __NOP(); // idle machine
+    }
+  }
+  return 0; // Success
+}
+
+  /*(void)pIO; // Unused in this implementation
+  //HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_RESET); // Select the SPI device
 
   if (HAL_SPI_TransmitReceive(&hspi1, (uint8_t*)pTX, (uint8_t*)pRX, length, HAL_MAX_DELAY) != HAL_OK)
   {
-    HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET); // Deselect the SPI device
-    return -1; // Error during SPI transfer
+    //HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET); // Deselect the SPI device
+    return -1; // Error du ring SPI transfer
   }
 
   HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET); // Deselect the SPI device
-  return 0; // Success
-}
+  return 0; // Success*/
 
 static void StepDriverReset(void* pGPO, const int ena)
 {
@@ -170,113 +193,193 @@ static void StepLibraryDelay(unsigned int ms)
   vTaskDelay(pdMS_TO_TICKS(ms)); // Delay using FreeRTOS
 }
 
-static int StepTimerAsync(void* pPWM, int dir, unsigned int numPulses, void (*doneClb)(L6474_Handle_t), L6474_Handle_t h)
-{
-  (void)pPWM; // Unused in this implementation
-  (void)dir;  // Direction handling not implemented here
-  (void)h;    // Handle unused in this implementation
-
-  // Example implementation for asynchronous stepping
-  TimerHandle_t timer = xTimerCreate("StepTimer", pdMS_TO_TICKS(1), pdTRUE, (void*)doneClb, (TimerCallbackFunction_t)doneClb);
-  if (timer == NULL)
-  {
-    return -1; // Failed to create timer
-  }
-
-  if (xTimerStart(timer, 0) != pdPASS)
-  {
-    xTimerDelete(timer, 0); // Cleanup if start fails
-    return -1; // Failed to start timer
-  }
-
-  return 0; // Success
-}
+typedef struct {
+  void* pPWM;
+  int dir;
+  unsigned int numPulses;
+  void (*doneClb)(L6474_Handle_t);
+  L6474_Handle_t h;
+  TaskHandle_t taskHandle; // task handle so it can be cancelled
+} StepperTaskArgs_t;
 
 static int StepTimerCancelAsync(void* pPWM)
 {
+    StepperTaskArgs_t* args = (StepperTaskArgs_t*)pPWM; // Cast pPWM to StepperTaskArgs_t*
+
+    if (args && args->taskHandle) {
+        // Suspend the task to ensure it doesn't execute further
+        vTaskSuspend(args->taskHandle);
+
+        // Delete the task
+        vTaskDelete(args->taskHandle);
+
+        // Free the memory allocated for the task arguments
+        vPortFree(args);
+
+        return 0; // Success
+    }
+
+    return -1; // Task was not running or invalid arguments
+}
+
+void vStepperPulseTask(void* pvParameters) {
+    StepperTaskArgs_t* args = (StepperTaskArgs_t*)pvParameters;
+
+    // Store the current task handle in the arguments
+    args->taskHandle = xTaskGetCurrentTaskHandle();
+
+    /* Set direction (beispielhaft über pGPO)
+    if (args->h.pGPO) {
+        // Pseudocode: setDirection(args->h.pGPO, args->dir);
+    }*/
+
+    // Pulse loop
+    for (unsigned int i = 0; i < args->numPulses; ++i) {
+        // Set STEP_PULSE pin high
+        HAL_GPIO_WritePin(STEP_PULSE_GPIO_Port, STEP_PULSE_Pin, GPIO_PIN_SET);
+        vTaskDelay(pdMS_TO_TICKS(1)); // 1 ms High
+
+        // Set STEP_PULSE pin low
+        HAL_GPIO_WritePin(STEP_PULSE_GPIO_Port, STEP_PULSE_Pin, GPIO_PIN_RESET);
+        vTaskDelay(pdMS_TO_TICKS(1)); // 1 ms Low
+    }
+
+    // Call the done callback
+    if (args->doneClb) {
+        args->doneClb(args->h);
+    }
+
+    // Free memory
+    vPortFree(args);
+
+    vTaskDelete(NULL);
+}
+
+static int StepTimerAsync(void* pPWM, int dir, unsigned int numPulses, void (*doneClb)(L6474_Handle_t), L6474_Handle_t h) {
+    StepperTaskArgs_t* args = pvPortMalloc(sizeof(StepperTaskArgs_t));
+    if (!args) return -1;  // malloc failed
+
+    args->pPWM      = pPWM;
+    args->dir       = dir;
+    args->numPulses = numPulses;
+    args->doneClb   = doneClb;
+    args->h         = h;
+    args->taskHandle = NULL; // Initialize the task handle to NULL
+
+    BaseType_t res = xTaskCreate(
+        vStepperPulseTask,
+        "StepperTask",
+        configMINIMAL_STACK_SIZE + 128,
+        args,
+        tskIDLE_PRIORITY + 1,
+        NULL
+    );
+
+    return (res == pdPASS) ? 0 : -1;
+}
+
+static int StepSynchronous(void* pPWM, int dir, unsigned int numPulses) {
   (void)pPWM; // Unused in this implementation
-  // Placeholder for canceling asynchronous step operation
+
+  // Set direction pin
+  HAL_GPIO_WritePin(STEP_DIR_GPIO_Port, STEP_DIR_Pin, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+  // Generate pulses
+  for (unsigned int i = 0; i < numPulses; ++i) {
+    // Set STEP_PULSE pin high
+    HAL_GPIO_WritePin(STEP_PULSE_GPIO_Port, STEP_PULSE_Pin, GPIO_PIN_SET);
+    StepLibraryDelay(1); // 1 ms High
+
+    // Set STEP_PULSE pin low
+    HAL_GPIO_WritePin(STEP_PULSE_GPIO_Port, STEP_PULSE_Pin, GPIO_PIN_RESET);
+    StepLibraryDelay(1); // 1 ms Low
+  }
+
   return 0; // Success
 }
 
-
-
-
 void StepperTask(void *pvParameters)
-  {
-      // Pass all function pointers required by the stepper library
-      // to a separate platform abstraction structure
-      L6474x_Platform_t p;
-      p.malloc     = StepLibraryMalloc;
-      p.free       = StepLibraryFree;
-      p.transfer   = StepDriverSpiTransfer;
-      p.reset      = StepDriverReset;
-      p.sleep      = StepLibraryDelay;
-      p.stepAsync  = StepTimerAsync;
-      p.cancelStep = StepTimerCancelAsync;
+{
+    // Allocate memory for the StepperTaskArgs_t structure
+    StepperTaskArgs_t* stepperArgs = pvPortMalloc(sizeof(StepperTaskArgs_t));
+    if (!stepperArgs) {
+        printf("Failed to allocate memory for StepperTaskArgs_t\r\n");
+        Error_Handler();
+    }
 
-      // Define additional context pointers for the stepper driver
-      void* pIO = NULL;  // Placeholder for SPI IO context, if needed
-      void* pGPO = NULL; // Placeholder for GPIO context, if needed
-      void* pPWM = NULL; // Placeholder for PWM context, if needed
+    // Initialize the StepperTaskArgs_t structure
+    stepperArgs->pPWM = NULL; // Placeholder for PWM context, if needed
+    stepperArgs->dir = 0;     // Default direction
+    stepperArgs->numPulses = 0;
+    stepperArgs->doneClb = NULL;
+    stepperArgs->h = NULL;
+    stepperArgs->taskHandle = NULL;
 
-      // Now create the handle
-      L6474_Handle_t h = L6474_CreateInstance(&p, pIO, pGPO, pPWM);
+    // Pass all function pointers required by the stepper library
+    // to a separate platform abstraction structure
+    L6474x_Platform_t p;
+    p.malloc     = StepLibraryMalloc;
+    p.free       = StepLibraryFree;
+    p.transfer   = StepDriverSpiTransfer;
+    p.reset      = StepDriverReset;
+    p.sleep      = StepLibraryDelay;
+    //p.stepAsync  = StepTimerAsync;
+    p.step       = StepSynchronous;
+    //p.cancelStep = StepTimerCancelAsync;
 
-      if (h == NULL) {
-          printf("Failed to create L6474 instance\r\n");
-          Error_Handler();
-      } else {
-          printf("Stepper motor instance created\r\n");
-      }
-      
-      int result = 0;
+    // Now create the handle, passing the stepperArgs as the pPWM parameter
+    L6474_Handle_t h = L6474_CreateInstance(&p, NULL, NULL, stepperArgs);
 
+    if (h == NULL) {
+        printf("Failed to create L6474 instance\r\n");
+        vPortFree(stepperArgs); // Free memory if instance creation fails
+        Error_Handler();
+    } else {
+        printf("Stepper motor instance created\r\n");
+    }
 
-      //create base parameter structure
-      L6474_BaseParameter_t baseParam = {
-          .stepMode   = smMICRO8,        // Gute Balance zwischen Auflösung und Drehmoment
-          .OcdTh      = ocdth1125mA,     // Ca. 1.125 A als Überstromgrenze
-          .TimeOnMin  = 10,              // µs – Beispielwert, ggf. durch Tests optimieren
-          .TimeOffMin = 15,              // µs – Beispielwert, ggf. durch Tests optimieren
-          .TorqueVal  = 80,              // 80% des max. Drehmoments
-          .TFast      = 5                // µs – Schaltzeitoptimierung
-      };
+    stepperArgs->h = h; // Store the handle in the arguments structure
 
-      //L6474_BaseParameter_t baseParam = {0}; // Initialize base parameter structure
+    int result = 0;
 
-      // Set default base parameters
-      result |= L6474_SetBaseParameter(&baseParam);
+    // Create base parameter structure
+    L6474_BaseParameter_t baseParam = {
+        .stepMode   = smMICRO8,        // Gute Balance zwischen Auflösung und Drehmoment
+        .OcdTh      = ocdth1125mA,     // Ca. 1.125 A als Überstromgrenze
+        .TimeOnMin  = 10,              // µs – Beispielwert, ggf. durch Tests optimieren
+        .TimeOffMin = 15,              // µs – Beispielwert, ggf. durch Tests optimieren
+        .TorqueVal  = 80,              // 80% des max. Drehmoments
+        .TFast      = 5                // µs – Schaltzeitoptimierung
+    };
 
-      // Initialize the driver with the base parameters
-      result |= L6474_Initialize(h, &baseParam);
-      result |= L6474_SetPowerOutputs(h, 1);
+    // Set default base parameters
+    result |= L6474_SetBaseParameter(&baseParam);
 
-      // In case we have no error, we can enable the drivers
-      // and then we step a bit
-      if (result == 0)
-      {
+    // Initialize the driver with the base parameters
+    result |= L6474_Initialize(h, &baseParam);
+    result |= L6474_SetPowerOutputs(h, 1);
+
+    // In case we have no error, we can enable the drivers
+    // and then we step a bit
+    if (result == 0) {
         result |= L6474_StepIncremental(h, 1000);
-        if (result == 0)
-        {
-          printf("Stepper motor moved 1000 steps\r\n");
+        if (result == 0) {
+            printf("Stepper motor moved 1000 steps\r\n");
+        } else {
+            printf("Error during step operation\r\n");
         }
-        else
-        {
-          printf("Error during step operation\r\n");
-        }
-      }
-      else
-      {
+    } else {
         // Error handling
         printf("Error during initialization: %d\r\n", result);
         Error_Handler();
-      }
+    }
 
-      // Delete the task after initialization
-      vTaskDelete(NULL);
+    // Free the memory for stepperArgs after use
+    vPortFree(stepperArgs);
 
-  }
+    // Delete the task after initialization
+    vTaskDelete(NULL);
+}
 
 
 int main(void)

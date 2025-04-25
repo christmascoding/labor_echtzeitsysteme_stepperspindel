@@ -7,9 +7,9 @@ C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:316:12:L6474_SetParamCommand	14
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:376:12:L6474_EnableCommand	6
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:407:12:L6474_DisableCommand	5
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:440:16:L6474_CreateInstance	10
+C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:440:16:L6474_CreateInstance	9
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:486:5:L6474_DestroyInstance	3
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:511:5:L6474_ResetStandBy	6
+C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:511:5:L6474_ResetStandBy	5
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:553:5:L6474_SetBaseParameter	2
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:570:5:L6474_Initialize	16
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:696:5:L6474_IsMoving	4
@@ -28,5 +28,5 @@ C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1120:5:L6474_SetAlarmEnables	5
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1152:5:L6474_GetStatus	6
 C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1196:5:L6474_GetState	3
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1211:5:L6474_StopMovement	6
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1252:5:L6474_StepIncremental	8
+C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1211:5:L6474_StopMovement	5
+C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibL6474/src/LibL6474x.c:1252:5:L6474_StepIncremental	7
