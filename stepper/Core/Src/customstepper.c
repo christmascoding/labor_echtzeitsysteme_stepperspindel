@@ -1,9 +1,13 @@
-#include "customstepper.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "main.h"
+#include "FreeRTOS.h"   
+#include "task.h"           
+#include "timers.h"        
+#include "stdio.h"          
+#include "LibL6474.h"       
+#include "main.h"    
 #include <stddef.h>  // for NULL
+#include "customstepper.h"
 
+extern SPI_HandleTypeDef hspi1;
 
 //static int ConsoleWriteStream_ToStdErr(void* pContext, const char* pBuffer, int num)
 //{
@@ -57,7 +61,7 @@ static void StepLibraryDelay(unsigned int ms)
   TaskHandle_t taskHandle; // task handle so it can be cancelled
 } StepperTaskArgs_t;*/
 
-static int StepTimerCancelAsync(void* pPWM)
+int StepTimerCancelAsync(void* pPWM)
 {
     StepperTaskArgs_t* args = (StepperTaskArgs_t*)pPWM; // Cast pPWM to StepperTaskArgs_t*
 
@@ -110,7 +114,7 @@ void vStepperPulseTask(void* pvParameters) {
     vTaskDelete(NULL);
 }
 
-static int StepTimerAsync(void* pPWM, int dir, unsigned int numPulses, void (*doneClb)(L6474_Handle_t), L6474_Handle_t h) {
+int StepTimerAsync(void* pPWM, int dir, unsigned int numPulses, void (*doneClb)(L6474_Handle_t), L6474_Handle_t h) {
     StepperTaskArgs_t* args = pvPortMalloc(sizeof(StepperTaskArgs_t));
     if (!args) return -1;  // malloc failed
 
@@ -133,7 +137,7 @@ static int StepTimerAsync(void* pPWM, int dir, unsigned int numPulses, void (*do
     return (res == pdPASS) ? 0 : -1;
 }
 
-static int StepSynchronous(void* pPWM, int dir, unsigned int numPulses) {
+int StepSynchronous(void* pPWM, int dir, unsigned int numPulses) {
   (void)pPWM; // Unused in this implementation
 
   // Set direction pin

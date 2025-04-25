@@ -169,6 +169,9 @@ int main(void)
       printf("Failed to create StepperTask\r\n");
       Error_Handler();
   }
+  // Create Spindle Task
+
+  
 
   printf("Hallo Welt\r\n");
   (void)CapabilityFunc;
