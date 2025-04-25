@@ -148,44 +148,21 @@ static int StepDriverSpiTransfer(void* pIO, char* pRX, const char* pTX, unsigned
 {
   for (unsigned int i = 0; i < length; i++) {
     HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_RESET); // Select the SPI device
-    if (HAL_SPI_TransmitReceive(&hspi1, (uint8_t*)&pTX[i], (uint8_t*)&pRX[i], 1, HAL_MAX_DELAY) != HAL_OK) {
+    if (HAL_SPI_TransmitReceive(&hspi1, pTX+i, pRX+i,(uint16_t)1, HAL_MAX_DELAY) != HAL_OK) {
       HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET); // Deselect the SPI device
       return -1; // Error during SPI transfer
     }
     HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET); // Deselect the SPI device
-    //code for 800ns delay lol
 
-    // Calculate the clock speed in Hz
-    uint32_t clockSpeedHz = HAL_RCC_GetSysClockFreq();
-
-    // Calculate the number of NOPs needed for 800ns delay
-    // Each NOP takes 1 clock cycle, so calculate cycles for 800ns
-    uint32_t nopsNeeded = (clockSpeedHz / 1000000000) * 800;  
-
-    // Perform the NOPs
-    for (volatile uint32_t i = 0; i < nopsNeeded + 1; i++) { //+1 for safety (better wait longer!)
-      __NOP(); // idle machine
-    }
   }
   return 0; // Success
 }
 
-  /*(void)pIO; // Unused in this implementation
-  //HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_RESET); // Select the SPI device
-
-  if (HAL_SPI_TransmitReceive(&hspi1, (uint8_t*)pTX, (uint8_t*)pRX, length, HAL_MAX_DELAY) != HAL_OK)
-  {
-    //HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET); // Deselect the SPI device
-    return -1; // Error du ring SPI transfer
-  }
-
-  HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET); // Deselect the SPI device
-  return 0; // Success*/
 
 static void StepDriverReset(void* pGPO, const int ena)
 {
   (void)pGPO; // Unused in this implementation
-  HAL_GPIO_WritePin(STEP_RSTN_GPIO_Port, STEP_RSTN_Pin, ena ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(STEP_RSTN_GPIO_Port, STEP_RSTN_Pin, !ena ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
 static void StepLibraryDelay(unsigned int ms)
@@ -328,7 +305,7 @@ void StepperTask(void *pvParameters)
     //p.cancelStep = StepTimerCancelAsync;
 
     // Now create the handle, passing the stepperArgs as the pPWM parameter
-    L6474_Handle_t h = L6474_CreateInstance(&p, NULL, NULL, stepperArgs);
+    L6474_Handle_t h = L6474_CreateInstance(&p, NULL, NULL, NULL);
 
     if (h == NULL) {
         printf("Failed to create L6474 instance\r\n");
@@ -338,7 +315,7 @@ void StepperTask(void *pvParameters)
         printf("Stepper motor instance created\r\n");
     }
 
-    stepperArgs->h = h; // Store the handle in the arguments structure
+    //stepperArgs->h = h; // Store the handle in the arguments structure
 
     int result = 0;
 
@@ -352,9 +329,10 @@ void StepperTask(void *pvParameters)
         .TFast      = 5                // µs – Schaltzeitoptimierung
     };
 
+
     // Set default base parameters
     result |= L6474_SetBaseParameter(&baseParam);
-
+    result |= L6474_ResetStandBy(h);
     // Initialize the driver with the base parameters
     result |= L6474_Initialize(h, &baseParam);
     result |= L6474_SetPowerOutputs(h, 1);
