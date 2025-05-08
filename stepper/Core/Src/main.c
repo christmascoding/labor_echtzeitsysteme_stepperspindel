@@ -27,6 +27,7 @@
 #include "stdio.h"
 #include "LibL6474.h"
 #include "customstepper.h"
+#include "customspindel.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,6 +53,8 @@ SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart3;
+
+ConsoleHandle_t c; // carl use this for console handle
 
 /* USER CODE BEGIN PV */
 
@@ -170,7 +173,10 @@ int main(void)
       Error_Handler();
   }
   // Create Spindle Task
-
+  if (xTaskCreate(SpindleTask, "SpindleTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+        printf("Failed to create SpindleTask\r\n");
+        Error_Handler();
+    }
   
 
   printf("Hallo Welt\r\n");
