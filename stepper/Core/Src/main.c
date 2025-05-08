@@ -26,6 +26,7 @@
 #include "timers.h" // Include the header for TimerCallbackFunction_t
 #include "stdio.h"
 #include "LibL6474.h"
+#include "console_inputs.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -394,13 +395,16 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
-  // Create the task
-  if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+  // Create stepper, and console input tasks
+  if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS) {
       printf("Failed to create StepperTask\r\n");
       Error_Handler();
   }
+  if (xTaskCreate(ConsoleInputTask, "ConsoleInputTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+    printf("Failed to create ConsoleInputTask\r\n");
+    Error_Handler();
+}
 
-  printf("Hallo Welt\r\n");
   (void)CapabilityFunc;
   vTaskStartScheduler();
   /* USER CODE END 2 */
