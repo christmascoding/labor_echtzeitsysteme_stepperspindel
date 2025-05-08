@@ -8,6 +8,9 @@
 #include "customstepper.h"
 
 extern SPI_HandleTypeDef hspi1;
+extern L6474_Handle_t stepperHandle; 
+
+
 int stepspermm = 100; //steps/mm for the stepper motor
 // Function to calculate the number of steps needed to move a certain distance
 static int CalcAbsolute(double position, double currentPosition, int stepsPerMm) {
@@ -676,7 +679,7 @@ void StepperTask(void *pvParameters)
     //p.cancelStep = StepTimerCancelAsync;
 
     // Now create the handle, passing the stepperArgs as the pPWM parameter
-    L6474_Handle_t h = L6474_CreateInstance(&p, NULL, NULL, NULL);
+    stepperHandle = L6474_CreateInstance(&p, NULL, NULL, NULL);
 
     if (h == NULL) {
         printf("Failed to create L6474 instance\r\n");
@@ -703,15 +706,15 @@ void StepperTask(void *pvParameters)
 
     // Set default base parameters
     result |= L6474_SetBaseParameter(&baseParam);
-    result |= L6474_ResetStandBy(h);
+    result |= L6474_ResetStandBy(stepperHandle);
     // Initialize the driver with the base parameters
-    result |= L6474_Initialize(h, &baseParam);
-    result |= L6474_SetPowerOutputs(h, 1);
+    result |= L6474_Initialize(stepperHandle, &baseParam);
+    result |= L6474_SetPowerOutputs(stepperHandle, 1);
 
     // In case we have no error, we can enable the drivers
     // and then we step a bit
     if (result == 0) {
-        result |= L6474_StepIncremental(h, 1000);
+        result |= L6474_StepIncremental(stepperHandle, 1000);
         if (result == 0) {
             printf("Stepper motor moved 1000 steps\r\n");
         } else {

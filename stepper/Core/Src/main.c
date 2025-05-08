@@ -54,7 +54,8 @@ TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart3;
 
-ConsoleHandle_t c; // carl use this for console handle
+L6474_Handle_t stepperHandle = NULL; //stepper handle for laster use
+
 
 /* USER CODE BEGIN PV */
 
