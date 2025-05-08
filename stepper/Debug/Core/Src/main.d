@@ -45,8 +45,6 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/task.h \
  ../../libs/LibL6474/inc/LibL6474.h \
  /home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/Core/Inc/Stepper/LibL6474Config.h \
- ../Core/Inc/console_inputs.h ../Core/Inc/main.h \
- /home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/Core/Inc/Console/ConsoleConfig.h \
  ../../libs/LibSpindle/inc/Spindle.h \
  ../../libs/LibRTOSConsole/inc/Console.h
 ../Core/Inc/main.h:
@@ -96,8 +94,5 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/task.h:
 ../../libs/LibL6474/inc/LibL6474.h:
 /home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/Core/Inc/Stepper/LibL6474Config.h:
-../Core/Inc/console_inputs.h:
-../Core/Inc/main.h:
-/home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/Core/Inc/Console/ConsoleConfig.h:
 ../../libs/LibSpindle/inc/Spindle.h:
 ../../libs/LibRTOSConsole/inc/Console.h:

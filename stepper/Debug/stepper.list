@@ -35,17 +35,17 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  15 .debug_rnglists 00001219  00000000  00000000  00035638  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_macro  0002a793  00000000  00000000  00036851  2**0
+ 16 .debug_macro  0002aa64  00000000  00000000  00036851  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_line   0001eca0  00000000  00000000  00060fe4  2**0
+ 17 .debug_line   0001eb8d  00000000  00000000  000612b5  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_str    0010ac2d  00000000  00000000  0007fc84  2**0
+ 18 .debug_str    0010ac2d  00000000  00000000  0007fe42  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .comment      00000043  00000000  00000000  0018a8b1  2**0
+ 19 .comment      00000043  00000000  00000000  0018aa6f  2**0
                   CONTENTS, READONLY
- 20 .debug_frame  00007b70  00000000  00000000  0018a8f4  2**2
+ 20 .debug_frame  00007b70  00000000  00000000  0018aab4  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 21 .debug_line_str 000000b5  00000000  00000000  00192464  2**0
+ 21 .debug_line_str 000000b5  00000000  00000000  00192624  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -7011,6 +7011,7 @@ int initConsole() {
  80036a2:	490f      	ldr	r1, [pc, #60]	@ (80036e0 <initConsole+0x58>)
  80036a4:	6878      	ldr	r0, [r7, #4]
  80036a6:	f7ff fc35 	bl	8002f14 <CONSOLE_RegisterCommand>
+
   if (CONSOLE_RegisterCommand(c, "spindle", "Moves the spindle", SpindleConsoleFunction, NULL) == 0) {
  80036aa:	2300      	movs	r3, #0
  80036ac:	9300      	str	r3, [sp, #0]
@@ -7030,7 +7031,10 @@ int initConsole() {
     printf("Failed to register spindle command.\n");
  80036c8:	480a      	ldr	r0, [pc, #40]	@ (80036f4 <initConsole+0x6c>)
  80036ca:	f00b fe51 	bl	800f370 <puts>
-  }
+  //} else {
+  //  printf("Failed to register stepper command.\n");
+  //}
+  
   
 }
  80036ce:	bf00      	nop
@@ -8145,7 +8149,7 @@ void assert_failed(uint8_t *file, uint32_t line)
 	assert(0);
  8003d60:	4b04      	ldr	r3, [pc, #16]	@ (8003d74 <assert_failed+0x2c>)
  8003d62:	4a05      	ldr	r2, [pc, #20]	@ (8003d78 <assert_failed+0x30>)
- 8003d64:	f44f 7155 	mov.w	r1, #852	@ 0x354
+ 8003d64:	f240 315b 	movw	r1, #859	@ 0x35b
  8003d68:	4804      	ldr	r0, [pc, #16]	@ (8003d7c <assert_failed+0x34>)
  8003d6a:	f009 f9e9 	bl	800d140 <__assert_func>
  8003d6e:	bf00      	nop

@@ -26,7 +26,6 @@
 #include "timers.h" // Include the header for TimerCallbackFunction_t
 #include "stdio.h"
 #include "LibL6474.h"
-#include "console_inputs.h"
 #include "Spindle.h"
 /* USER CODE END Includes */
 
@@ -434,17 +433,18 @@ int initConsole() {
   ConsoleHandle_t c = CONSOLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 5  );
 
   CONSOLE_RegisterCommand(c, "capability", "prints a specified string of capability bits", CapabilityFunc, NULL);
+
   if (CONSOLE_RegisterCommand(c, "spindle", "Moves the spindle", SpindleConsoleFunction, NULL) == 0) {
     printf("Spindle command registered successfully.\n");
   } else {
     printf("Failed to register spindle command.\n");
   }
 
-  if (CONSOLE_RegisterCommand(c, "stepper", "Moves the stepper", StepperConsoleFunction , NULL) == 0) {
-    printf("Stepper command registered successfully.\n");
-  } else {
-    printf("Failed to register stepper command.\n");
-  }
+  //if (CONSOLE_RegisterCommand(c, "stepper", "Moves the stepper", StepperConsoleFunction , NULL) == 0) {
+  //  printf("Stepper command registered successfully.\n");
+  //} else {
+  //  printf("Failed to register stepper command.\n");
+  //}
   
   
 }
