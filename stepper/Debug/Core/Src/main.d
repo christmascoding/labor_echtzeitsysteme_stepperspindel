@@ -46,7 +46,9 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../../libs/LibL6474/inc/LibL6474.h \
  /home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/Core/Inc/Stepper/LibL6474Config.h \
  ../Core/Inc/console_inputs.h ../Core/Inc/main.h \
- /home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/Core/Inc/Console/ConsoleConfig.h
+ /home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/Core/Inc/Console/ConsoleConfig.h \
+ ../../libs/LibSpindle/inc/Spindle.h \
+ ../../libs/LibRTOSConsole/inc/Console.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal.h:
 ../Core/Inc/stm32f7xx_hal_conf.h:
@@ -97,3 +99,5 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/console_inputs.h:
 ../Core/Inc/main.h:
 /home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/Core/Inc/Console/ConsoleConfig.h:
+../../libs/LibSpindle/inc/Spindle.h:
+../../libs/LibRTOSConsole/inc/Console.h:

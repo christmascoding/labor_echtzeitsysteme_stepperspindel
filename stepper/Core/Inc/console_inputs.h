@@ -9,6 +9,7 @@
 #include "stdio.h"
 #include "LibL6474.h"
 #include "ConsoleConfig.h"
+#include "Spindle.h"
 
 
 // example: stepper move 1000 -r 

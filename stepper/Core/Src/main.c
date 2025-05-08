@@ -27,6 +27,7 @@
 #include "stdio.h"
 #include "LibL6474.h"
 #include "console_inputs.h"
+#include "Spindle.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -396,24 +397,29 @@ int main(void)
 
 
   // Create stepper, and console input tasks
-  if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS) {
-      printf("Failed to create StepperTask\r\n");
-      Error_Handler();
-  }
+  //if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS) {
+  //    printf("Failed to create StepperTask\r\n");
+  //    Error_Handler();
+  //}
   if (xTaskCreate(ConsoleInputTask, "ConsoleInputTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
     printf("Failed to create ConsoleInputTask\r\n");
     Error_Handler();
-}
+  }
 
   (void)CapabilityFunc;
+  
   vTaskStartScheduler();
   /* USER CODE END 2 */
+ 
+  //CONSOLE_RegisterCommand(c, "capability", "prints a specified string of capability bits", CapabilityFunc, NULL);
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
+    
+
 
     /* USER CODE BEGIN 3 */
   }
