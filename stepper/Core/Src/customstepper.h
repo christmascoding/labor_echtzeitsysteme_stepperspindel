@@ -16,6 +16,9 @@ typedef struct {
     void (*doneClb)(L6474_Handle_t);
     L6474_Handle_t h;
     TaskHandle_t taskHandle;
+    double currentPosition;
+    bool homed;              // Whether the stepper has been homed
+    double MAXPOS;           // Maximum position of the stepper in mm
 } StepperTaskArgs_t;
 
 // Task function to control stepper motor in a FreeRTOS task

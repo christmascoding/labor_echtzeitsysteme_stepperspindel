@@ -8,6 +8,17 @@
 #include "customstepper.h"
 
 extern SPI_HandleTypeDef hspi1;
+int stepspermm = 100; //steps/mm for the stepper motor
+// Function to calculate the number of steps needed to move a certain distance
+static int CalcAbsolute(double position, double currentPosition, int stepsPerMm) {
+  double deltaPosition = position - currentPosition; // Calculate the difference in position
+  return (int)(deltaPosition * stepsPerMm);         // Convert to steps
+}
+
+// Function to calculate the number of steps for a relative move
+static int CalcRelative(double relativePosition, int stepsPerMm) {
+  return (int)(relativePosition * stepsPerMm);      // Convert relative position to steps
+}
 
 //static int ConsoleWriteStream_ToStdErr(void* pContext, const char* pBuffer, int num)
 //{
@@ -16,6 +27,481 @@ extern SPI_HandleTypeDef hspi1;
 //	return _write(2, pBuffer, num);
 //}
 /* USER CODE END 0 */
+typedef enum
+// --------------------------------------------------------------------------------------------------------------------
+{
+  cctNONE                = 0x00,
+  cctSTART               = 0x01,
+  cctSTOP                = 0x02,
+  cctMOVE_RELATIVE       = 0x03,
+  cctMOVE_ABSOLUTE       = 0x04,
+  cctMOVE_WITH_SPEED     = 0x05,
+  cctREFERENCE_ENABLE    = 0x06,
+  cctREFERENCE_TIMEOUT   = 0x07,
+  cctREFERENCE_SKIP      = 0x08,
+  cctPOSITION            = 0x09,
+  cctCANCEL              = 0x0A,
+  cctSTATUS              = 0x0B,
+  cctCONFIG_POWER_ENABLE = 0x0C,
+  cctCONFIG_PARAMETER    = 0x0D
+} CtrlCommandType_t;
+
+typedef struct CtrlCommand
+// --------------------------------------------------------------------------------------------------------------------
+{
+  struct
+  {
+    int requestID; // Unique request ID
+    CtrlCommandType_t type; // Command type
+  } head;
+  struct
+  {
+    union
+    {
+      struct
+      {
+        double relativePosition; // stepper move <RelPos> -r
+      } asMoveRelative;
+
+      struct
+      {
+        double absolutePosition; // stepper move <AbsPos> -a
+      } asMoveAbsolute;
+
+      struct
+      {
+        double absolutePosition; // stepper move <AbsPos> -s <Speed_in_mm/min>
+        float speed;
+      } asMoveWithSpeed;
+
+      struct
+      {
+        int enablePowerOutputs; // stepper reference -e
+      } asReferenceEnable;
+
+      struct
+      {
+        int timeout; // stepper reference -t <time>
+      } asReferenceWithTimeout;
+
+      struct
+      {
+        int skipReference; // stepper reference -s
+      } asReferenceSkip;
+
+      struct
+      {
+        int position; // stepper position
+      } asPosition;
+
+      struct
+      {
+        int cancelOperation; // stepper cancel
+      } asCancel;
+
+      struct
+      {
+        int status; // stepper status
+      } asStatus;
+
+      struct
+      {
+        int powerEnable; // stepper config powerena [-v 0|1]
+        int value;
+      } asConfigPowerEnable;
+
+      struct
+      {
+        char parameter[32]; // stepper config <parameter> [-v <value>]
+        int value;
+      } asConfigParameter;
+
+    } args;
+    SemaphoreHandle_t syncEvent; // Synchronization event
+  } request;
+  StepCommandResponse_t* response; // Response structure
+} StepperCtrlCommand_t;
+
+typedef struct StepCommandResponse
+// --------------------------------------------------------------------------------------------------------------------
+{
+    int code;       // Response code: 0 for success, non-zero for failure
+    int requestID;  // Unique ID of the request
+    union
+    {
+        struct
+        {
+            float speed;   // Speed in mm/min
+            int running;   // 1 if the stepper is running, 0 otherwise
+        } asStatus;        // Response for "stepper status"
+
+        struct
+        {
+            int position;  // Current position of the stepper
+        } asPosition;      // Response for "stepper position"
+
+        struct
+        {
+            int powerEnabled; // 1 if power outputs are enabled, 0 otherwise
+        } asConfigPowerEnable; // Response for "stepper config powerena"
+
+        struct
+        {
+            char parameter[32]; // Parameter name
+            int value;          // Parameter value
+        } asConfigParameter;    // Response for "stepper config <parameter>"
+
+        struct
+        {
+            int timeoutOccurred; // 1 if timeout occurred, 0 otherwise
+        } asReferenceWithTimeout; // Response for "stepper reference -t"
+
+        struct
+        {
+            int skipped; // 1 if reference was skipped, 0 otherwise
+        } asReferenceSkip; // Response for "stepper reference -s"
+
+        struct
+        {
+            int success; // 1 if reference was successful, 0 otherwise
+        } asReferenceEnable; // Response for "stepper reference -e"
+
+        struct
+        {
+            int canceled; // 1 if the operation was canceled, 0 otherwise
+        } asCancel; // Response for "stepper cancel"
+    } args; // Union for different response types
+} StepCommandResponse_t;
+
+
+// Stepper Console Function
+// --------------------------------------------------------------------------------------------------------------------
+static int StepperConsoleFunction(int argc, char** argv, void* ctx)
+// --------------------------------------------------------------------------------------------------------------------
+{
+	//possible commands are
+	// stepper move (absolutePos) ->
+	// stepper move (relativePos) -r
+	// stepper move (absPos) -s (speed in mm/min)
+	// stepper reference  -> referenzfahrt
+	// stepper reset  -> reset and re-initialize stepper
+
+
+  StepperTaskArgs_t* args = (StepperTaskArgs_t*)ctx; // Cast ctx to StepperTaskArgs_t*
+  L6474_Handle_t h = stepperArgs->h; // Access the stepper handle
+	StepCommandResponse_t response = { 0 };
+	StepperCtrlCommand_t cmd;
+
+  //register command like this: CONSOLE_RegisterCommand(consoleHandle, "stepper", "Control the stepper motor", StepperConsoleFunction, stepperArgs);
+
+	cmd.response       = &response;
+	cmd.head.requestID = h->nextRequestID;
+	h->nextRequestID += 1;
+  // First decode the subcommand and all arguments
+  if (argc == 0) {
+    // No arguments provided
+    printf("invalid number of arguments\r\nFAIL");
+    response->code = -1;
+  }
+
+  // Handle "move" command
+  if (strcmp(argv[0], "move") == 0) {
+    if (argc < 2) {
+        printf("Missing position argument for move command\r\nFAIL\r\n");
+        return -1;
+    }
+
+    double position = atof(argv[1]); // Parse position as double
+
+    if (strcmp(argv[2], "-r") == 0) {
+        // Relative move
+        cmd.head.type = cctMOVE_RELATIVE;
+        cmd.request.args.asMoveRelative.relativePosition = position;
+    } else if (strcmp(argv[2], "-a") == 0) {
+        // Absolute move
+        cmd.head.type = cctMOVE_ABSOLUTE;
+        cmd.request.args.asMoveAbsolute.absolutePosition = position;
+    } else if (strcmp(argv[2], "-s") == 0) {
+        // Move with speed
+        if (argc < 4) {
+            printf("Missing speed argument for move command\r\nFAIL\r\n");
+            return -1;
+        }
+        cmd.head.type = cctMOVE_WITH_SPEED;
+        cmd.request.args.asMoveWithSpeed.absolutePosition = position;
+        cmd.request.args.asMoveWithSpeed.speed = atof(argv[3]); // Parse speed as double
+    } else {
+        printf("Invalid subcommand for move command\r\nFAIL\r\n");
+        return -1;
+    }
+}
+  // Handle "reference" command
+  // Handle "reference" command
+else if (strcmp(argv[0], "reference") == 0) {
+  if (argc == 1) {
+      cmd.head.type = cctREFERENCE_ENABLE; // Matches "stepper reference"
+      cmd.request.args.asReferenceEnable.enablePowerOutputs = 0; // No enabled power outputs -> only reference command
+  } else if (argc >= 2) {
+      if (strcmp(argv[1], "-e") == 0) {
+          cmd.head.type = cctREFERENCE_ENABLE; // Matches "stepper reference -e"
+          cmd.request.args.asReferenceEnable.enablePowerOutputs = 1;
+      } else if (strcmp(argv[1], "-t") == 0) {
+          if (argc < 3) {
+              // Missing timeout value
+              printf("missing timeout value for reference command\r\nFAIL");
+              return -1;
+          }
+          cmd.head.type = cctREFERENCE_TIMEOUT; // Matches "stepper reference -t <time>"
+          cmd.request.args.asReferenceWithTimeout.timeout = atoi(argv[2]);
+      } else if (strcmp(argv[1], "-s") == 0) {
+          cmd.head.type = cctREFERENCE_SKIP; // Matches "stepper reference -s"
+          cmd.request.args.asReferenceSkip.skipReference = 1;
+      } else {
+          // Invalid subcommand
+          printf("invalid subcommand for reference\r\nFAIL");
+          return -1;
+      }
+  }
+}
+  // Handle "position" command
+  else if (strcmp(argv[0], "position") == 0) {
+    cmd.head.type = cctPOSITION; // Matches "stepper position"
+  } 
+  // Handle "cancel" command
+  else if (strcmp(argv[0], "cancel") == 0) {
+    cmd.head.type = cctCANCEL; // Matches "stepper cancel"
+    cmd.request.args.asCancel.cancelOperation = 1;
+  } 
+  // Handle "status" command
+  else if (strcmp(argv[0], "status") == 0) {
+    cmd.head.type = cctSTATUS; // Matches "stepper status"
+  } 
+  // Handle "config" command
+  else if (strcmp(argv[0], "config") == 0) {
+    if (argc < 2) {
+      // Missing parameter
+      printf("missing parameter for config command\r\nFAIL");
+      return -1;
+    }
+
+    if (strcmp(argv[1], "powerena") == 0) {
+      cmd.head.type = cctCONFIG_POWER_ENABLE; // Matches "stepper config powerena [-v 0|1]"
+
+      if (argc > 2 && strcmp(argv[2], "-v") == 0) {
+        if (argc < 4) {
+          // Missing value for powerena
+          printf("missing value for powerena config\r\nFAIL");
+          return -1;
+        }
+        cmd.request.args.asConfigPowerEnable.powerEnable = atoi(argv[3]);
+      }
+    } else {
+      cmd.head.type = cctCONFIG_PARAMETER; // Matches "stepper config <parameter> [-v <value>]"
+      strncpy(cmd.request.args.asConfigParameter.parameter, argv[1], sizeof(cmd.request.args.asConfigParameter.parameter) - 1);
+
+      if (argc > 2 && strcmp(argv[2], "-v") == 0) {
+        if (argc < 4) {
+          // Missing value for parameter
+          printf("missing value for parameter config\r\nFAIL");
+          return -1;
+        }
+        cmd.request.args.asConfigParameter.value = atoi(argv[3]);
+      }
+    }
+  } 
+  // Handle invalid command
+  else {
+    printf("passed invalid subcommand\r\nFAIL");
+    return -1;
+  }
+  // Execute the command based on cmd.head.type
+switch (cmd.head.type) {
+  case cctMOVE_RELATIVE:
+      // Handle relative move
+      printf("Moving by relative position: %.2f\r\n", cmd.request.args.asMoveRelative.relativePosition);
+      {
+          int steps = CalcRelative(cmd.request.args.asMoveRelative.relativePosition, stepspermm);
+          if (L6474_StepIncremental(h, steps) == 0) {
+              printf("Relative move command executed successfully\r\nOK\r\n");
+          } else {
+              printf("Error executing relative move command\r\nFAIL\r\n");
+              response.code = -1;
+          }
+      }
+      break;
+
+  case cctMOVE_ABSOLUTE:
+      // Handle absolute move
+      printf("Moving to absolute position: %.2f\r\n", cmd.request.args.asMoveAbsolute.absolutePosition);
+      {
+          int steps = CalcAbsolute(cmd.request.args.asMoveAbsolute.absolutePosition, 0.0, stepspermm); // Assuming currentPosition is 0.0 for now
+          if (L6474_StepIncremental(h, steps) == 0) {
+              printf("Move command executed successfully\r\nOK\r\n");
+          } else {
+              printf("Error executing move command\r\nFAIL\r\n");
+              response.code = -1;
+          }
+      }
+      break;
+
+  case cctMOVE_WITH_SPEED:
+      // Handle move with speed
+      printf("Moving to position: %.2f at speed: %.2f mm/min\r\n",
+             cmd.request.args.asMoveWithSpeed.absolutePosition,
+             cmd.request.args.asMoveWithSpeed.speed);
+      // Add logic to handle speed if needed
+      {
+          int steps = CalcAbsolute(cmd.request.args.asMoveWithSpeed.absolutePosition, 0.0, stepspermm); // Assuming currentPosition is 0.0 for now
+          if (L6474_StepIncremental(h, steps) == 0) {
+              printf("Move with speed command executed successfully\r\nOK\r\n");
+          } else {
+              printf("Error executing move with speed command\r\nFAIL\r\n");
+          }
+      }
+      break;
+
+      case cctREFERENCE_ENABLE: 
+      {
+        printf("Starting homing procedure...\r\n");
+        // Move towards the limit switch (home position)
+        while (HAL_GPIO_ReadPin(LIMIT_SWITCH_GPIO_Port, LIMIT_SWITCH_Pin) == GPIO_PIN_SET) {
+        if (L6474_StepIncremental(h, -1) != 0) { // Move one step in the negative direction
+            printf("Error during homing\r\nFAIL\r\n");
+            return -1;
+        }
+        }
+
+        // Set the current position to 0.0 (home position)
+        stepperArgs->currentPosition = 0.0;
+        h->currentPosition = 0.0; // Update the handle's current position
+        printf("Homing complete: Home position set to 0.0 mm\r\n");
+
+        // Move away from the limit switch slightly to avoid re-triggering
+        if (L6474_StepIncremental(h, stepspermm) != 0) { // Move 1 mm away
+        printf("Error moving away from limit switch\r\nFAIL\r\n");
+        return -1;
+        }step
+
+        // Move towards the reference switch (max position)
+        int stepsToMax = 0;
+        while (HAL_GPIO_ReadPin(REFERENCE_MARK_GPIO_Port, REFERENCE_MARK_Pin) == GPIO_PIN_SET) {
+        // Move one step at a time using L6474_StepIncremental
+        if (L6474_StepIncremental(h, 1) != 0) { // Move one step in the positive direction
+            printf("Error during homing\r\nFAIL\r\n");
+            return -1;
+        }
+        stepsToMax++;
+        }
+
+        // Calculate and set the MAXPOS
+        stepperArgs->MAXPOS = (double)stepsToMax / stepspermm;
+        h->MAXPOS = stepperArgs->MAXPOS; // Update the handle's MAXPOS
+        stepperArgs->currentPosition = stepperArgs->MAXPOS; // Set current position to MAXPOS
+        h->currentPosition = stepperArgs->MAXPOS; // Update the handle's current position
+        printf("Homing complete: Max position set to %.2f mm\r\n", stepperArgs->MAXPOS);
+
+        // Move away from the reference switch slightly to avoid re-triggering
+        if (L6474_StepIncremental(h, -stepspermm) != 0) { // Move 1 mm away
+        printf("Error moving away from reference switch\r\nFAIL\r\n");
+        return -1;
+        }
+
+        // Mark the stepper as homed
+        stepperArgs->homed = true;
+        h->homed = true; // Update the handle's homed status
+        printf("Homing procedure completed successfully\r\nOK\r\n");
+        break;
+        }
+  case cctREFERENCE_TIMEOUT:
+      // Handle reference with timeout
+      printf("Starting reference with timeout: %d ms\r\n", cmd.request.args.asReferenceWithTimeout.timeout);
+      // Add logic to handle timeout
+      printf("Reference with timeout completed\r\nOK\r\n");
+      break;
+
+  case cctREFERENCE_SKIP:
+      // Handle reference skip
+      printf("Skipping reference\r\n");
+      // Add logic to skip reference
+      printf("Reference skipped successfully\r\nOK\r\n");
+      break;
+
+  case cctPOSITION:
+      // Handle position query
+      printf("Querying current position\r\n");
+      // Add logic to get the current position
+      printf("Current position: %d\r\nOK\r\n", 0); // Replace 0 with actual position
+      break;
+
+  case cctCANCEL:
+      // Handle cancel operation
+      printf("Cancelling current operation\r\n");
+      // Add logic to cancel the current operation
+      printf("Operation cancelled successfully\r\nOK\r\n");
+      break;
+
+  case cctSTATUS:
+      // Handle status query
+      printf("Querying stepper status\r\n");
+      // Add logic to get the status
+      printf("Stepper is running: %d\r\n", 1); // Replace 1 with actual running status
+      printf("Current speed: %.2f mm/min\r\nOK\r\n", 500.0f); // Replace 500.0f with actual speed
+      break;
+
+  case cctCONFIG_POWER_ENABLE:
+      // Handle power enable configuration
+      printf("Setting power enable to: %d\r\n", cmd.request.args.asConfigPowerEnable.powerEnable);
+      // Add logic to enable/disable power
+      printf("Power enable set successfully\r\nOK\r\n");
+      break;
+
+  case cctCONFIG_PARAMETER:
+      // Handle parameter configuration
+      printf("Setting parameter: %s to value: %d\r\n",
+             cmd.request.args.asConfigParameter.parameter,
+             cmd.request.args.asConfigParameter.value);
+      // Add logic to configure the parameter
+      printf("Parameter configured successfully\r\nOK\r\n");
+      break;
+
+  default:
+      // Handle unknown command
+      printf("Unknown command type\r\nFAIL\r\n");
+      break;
+}
+  /*
+	// now pass the request to the controller
+	cmd.request.syncEvent = GetCommandEvent(h);
+
+	if ( pdPASS != xQueueSend( h->cmdQueue, &cmd, -1 ) )
+	{
+		ReleaseCommandEvent(h, cmd.request.syncEvent );
+		return -1;
+	}
+
+	xSemaphoreTake( cmd.request.syncEvent, -1 );
+	ReleaseCommandEvent(h, cmd.request.syncEvent );
+
+	// now decode the result in case there is one
+	if ( response.code == 0 )
+	{
+		if ( cmd.head.type == cctSTATUS )
+		{
+			printf("%d\r\n", !!cmd.response->args.asStatus.running);
+			printf("%d\r\n", (int)cmd.response->args.asStatus.speed);
+		}
+		printf("OK");
+	}
+	else
+	{
+		printf("error returned\r\nFAIL");
+	}
+
+	// now back to console*/
+	return response.code;
+}
+
+
 // Custom functions for stepper
 static void* StepLibraryMalloc(unsigned int size)
 {
@@ -173,6 +659,9 @@ void StepperTask(void *pvParameters)
     stepperArgs->doneClb = NULL;
     stepperArgs->h = NULL;
     stepperArgs->taskHandle = NULL;
+    stepperArgs->currentPosition = 0.0; // Initialize the current position to 0.0 mm
+    stepperArgs->homed = false;        // Initialize as not homed
+    stepperArgs->MAXPOS = 0.0;         // Initialize max position to 0.0 mm
 
     // Pass all function pointers required by the stepper library
     // to a separate platform abstraction structure
