@@ -4,7 +4,7 @@
 ../Core/Src/newlib_abs.c:257:6:initialise_stdlib_abstraction	4
 ../Core/Src/newlib_abs.c:295:5:_getpid	1
 ../Core/Src/newlib_abs.c:308:5:_kill	2
-C:\ST\STM32CubeIDE_1.18.1\STM32CubeIDE\plugins\com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344\tools\bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/sys/unistd.h:18:6:_exit	1
+/opt/st/stm32cubeide_1.18.0/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.linux64_1.0.0.202410170706/tools/arm-none-eabi/include/sys/unistd.h:18:6:_exit	1
 ../Core/Src/newlib_abs.c:345:5:_read	6
 ../Core/Src/newlib_abs.c:395:5:_write	9
 ../Core/Src/newlib_abs.c:461:5:_close	1
@@ -19,11 +19,11 @@ C:\ST\STM32CubeIDE_1.18.1\STM32CubeIDE\plugins\com.st.stm32cube.ide.mcu.external
 ../Core/Src/newlib_abs.c:588:5:_link	2
 ../Core/Src/newlib_abs.c:603:5:_fork	2
 ../Core/Src/newlib_abs.c:615:5:_execve	2
-C:\ST\STM32CubeIDE_1.18.1\STM32CubeIDE\plugins\com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344\tools\bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/reent.h:154:14:_sbrk_r	7
-C:\ST\STM32CubeIDE_1.18.1\STM32CubeIDE\plugins\com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344\tools\bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/sys/unistd.h:195:9:sbrk	1
+/opt/st/stm32cubeide_1.18.0/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.linux64_1.0.0.202410170706/tools/arm-none-eabi/include/reent.h:154:14:_sbrk_r	7
+/opt/st/stm32cubeide_1.18.0/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.linux64_1.0.0.202410170706/tools/arm-none-eabi/include/sys/unistd.h:195:9:sbrk	1
 ../Core/Src/newlib_abs.c:757:7:_sbrk	1
-C:\ST\STM32CubeIDE_1.18.1\STM32CubeIDE\plugins\com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344\tools\bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/malloc.h:136:13:__malloc_lock	4
-C:\ST\STM32CubeIDE_1.18.1\STM32CubeIDE\plugins\com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344\tools\bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/malloc.h:138:13:__malloc_unlock	2
+/opt/st/stm32cubeide_1.18.0/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.linux64_1.0.0.202410170706/tools/arm-none-eabi/include/malloc.h:136:13:__malloc_lock	4
+/opt/st/stm32cubeide_1.18.0/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.linux64_1.0.0.202410170706/tools/arm-none-eabi/include/malloc.h:138:13:__malloc_unlock	2
 ../Core/Src/newlib_abs.c:796:32:__env_lock	4
 ../Core/Src/newlib_abs.c:810:32:__env_unlock	2
 ../Core/Src/newlib_abs.c:824:7:pvPortMalloc	1

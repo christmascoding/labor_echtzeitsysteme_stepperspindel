@@ -1,5 +1,5 @@
 Core/Src/Spindle/Spindle.o: \
- C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c \
+ /home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/libs/LibSpindle/src/Spindle.c \
  ../../libs/LibSpindle/inc/Spindle.h \
  ../../libs/LibRTOSConsole/inc/Console.h \
  ../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/FreeRTOS.h \

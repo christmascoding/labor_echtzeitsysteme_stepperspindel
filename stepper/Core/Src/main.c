@@ -26,7 +26,9 @@
 #include "timers.h" // Include the header for TimerCallbackFunction_t
 #include "stdio.h"
 #include "LibL6474.h"
-#include "customstepper.h"
+
+#include "Spindle.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -164,22 +166,29 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
-  // Create the task
-  if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
-      printf("Failed to create StepperTask\r\n");
-      Error_Handler();
-  }
+  // Create stepper, and console input tasks
+  //if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS) {
+  //    printf("Failed to create StepperTask\r\n");
+  //    Error_Handler();
+  //}
+  //if (xTaskCreate(ConsoleInputTask, "ConsoleInputTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+  //  printf("Failed to create ConsoleInputTask\r\n");
+  //  Error_Handler();
+  //}
 
-  printf("Hallo Welt\r\n");
   (void)CapabilityFunc;
+  initConsole();
+
   vTaskStartScheduler();
   /* USER CODE END 2 */
-
+ 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
+    
+
 
     /* USER CODE BEGIN 3 */
   }
@@ -190,6 +199,28 @@ int main(void)
   * @brief System Clock Configuration
   * @retval None
   */
+
+int initConsole() {
+  ConsoleHandle_t c = CONSOLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 5  );
+
+  CONSOLE_RegisterCommand(c, "capability", "prints a specified string of capability bits", CapabilityFunc, NULL);
+
+  if (CONSOLE_RegisterCommand(c, "spindle", "Moves the spindle", SpindleConsoleFunction, NULL) == 0) {
+    printf("Spindle command registered successfully.\n");
+  } else {
+    printf("Failed to register spindle command.\n");
+  }
+
+  //if (CONSOLE_RegisterCommand(c, "stepper", "Moves the stepper", StepperConsoleFunction , NULL) == 0) {
+  //  printf("Stepper command registered successfully.\n");
+  //} else {
+  //  printf("Failed to register stepper command.\n");
+  //}
+  
+  
+}
+
+
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};

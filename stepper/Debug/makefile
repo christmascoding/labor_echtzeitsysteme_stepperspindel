@@ -66,8 +66,8 @@ all: main-build
 main-build: stepper.elf secondary-outputs
 
 # Tool invocations
-stepper.elf stepper.map: $(OBJS) $(USER_OBJS) C:\Users\hans-\Nextcloud\Documents\DHBW\Labor\Labor_HWNahesProg_Echtzeitsysteme\Semester4\Solution\stepper\STM32F746ZGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "stepper.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\Users\hans-\Nextcloud\Documents\DHBW\Labor\Labor_HWNahesProg_Echtzeitsysteme\Semester4\Solution\stepper\STM32F746ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="stepper.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -u _scanf_float -Wl,--start-group -lc -lm -Wl,--end-group
+stepper.elf stepper.map: $(OBJS) $(USER_OBJS) /home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/STM32F746ZGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "stepper.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"/home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/STM32F746ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="stepper.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -u _scanf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
