@@ -10,6 +10,7 @@
 extern SPI_HandleTypeDef hspi1;
 extern L6474_Handle_t stepperHandle; 
 
+extern SPI_HandleTypeDef hspi1;
 
 int stepspermm = 100; //steps/mm for the stepper motor
 // Function to calculate the number of steps needed to move a certain distance

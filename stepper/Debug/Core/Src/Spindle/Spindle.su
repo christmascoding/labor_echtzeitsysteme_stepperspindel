@@ -1,6 +1,6 @@
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:110:13:SpindleFunction	72	static
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:216:26:GetCommandEvent	24	static
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:240:13:ReleaseCommandEvent	24	static
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:261:12:SpindleConsoleFunction	64	static
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:344:13:SpindleRegisterBasicCommands	24	static
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/LibSpindle/src/Spindle.c:352:17:SPINDLE_CreateInstance	56	static
+/home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/libs/LibSpindle/src/Spindle.c:110:13:SpindleFunction	72	static
+/home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/libs/LibSpindle/src/Spindle.c:216:26:GetCommandEvent	24	static
+/home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/libs/LibSpindle/src/Spindle.c:240:13:ReleaseCommandEvent	24	static
+/home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/libs/LibSpindle/src/Spindle.c:261:5:SpindleConsoleFunction	64	static
+/home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/libs/LibSpindle/src/Spindle.c:344:13:SpindleRegisterBasicCommands	24	static
+/home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/libs/LibSpindle/src/Spindle.c:352:17:SPINDLE_CreateInstance	56	static
