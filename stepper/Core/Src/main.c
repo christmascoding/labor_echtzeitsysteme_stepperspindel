@@ -26,8 +26,10 @@
 #include "timers.h" // Include the header for TimerCallbackFunction_t
 #include "stdio.h"
 #include "LibL6474.h"
-
+#include "customstepper.h"
+#include "customspindel.h"
 #include "Spindle.h"
+
 
 /* USER CODE END Includes */
 
@@ -54,6 +56,9 @@ SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart3;
+
+L6474_Handle_t stepperHandle = NULL; //stepper handle for laster use
+
 
 /* USER CODE BEGIN PV */
 
@@ -166,15 +171,18 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
-  // Create stepper, and console input tasks
-  //if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS) {
-  //    printf("Failed to create StepperTask\r\n");
-  //    Error_Handler();
-  //}
-  //if (xTaskCreate(ConsoleInputTask, "ConsoleInputTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
-  //  printf("Failed to create ConsoleInputTask\r\n");
-  //  Error_Handler();
-  //}
+
+  // Create the task
+  if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+      printf("Failed to create StepperTask\r\n");
+      Error_Handler();
+  }
+  // Create Spindle Task
+  if (xTaskCreate(SpindleTask, "SpindleTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+        printf("Failed to create SpindleTask\r\n");
+        Error_Handler();
+    }
+  
 
   (void)CapabilityFunc;
   initConsole();
