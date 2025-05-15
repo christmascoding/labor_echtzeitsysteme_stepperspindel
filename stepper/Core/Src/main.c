@@ -41,6 +41,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 // fic
+ConsoleHandle_t c = NULL;
 void vStepperPulseTask(void* pvParameters);
 /* USER CODE END PD */
 
@@ -209,7 +210,7 @@ int main(void)
   */
 
 int initConsole() {
-  ConsoleHandle_t c = CONSOLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 5  );
+  c = CONSOLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 5  );
 
   CONSOLE_RegisterCommand(c, "capability", "prints a specified string of capability bits", CapabilityFunc, NULL);
 
