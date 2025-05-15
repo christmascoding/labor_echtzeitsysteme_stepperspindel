@@ -35,6 +35,9 @@ int StepTimerCancelAsync(void* pPWM);
 // Synchronous stepping function
 int StepSynchronous(void* pPWM, int dir, unsigned int numPulses);
 
+// Stepper console function
+int StepperConsoleFunction(int argc, char** argv, void* ctx);
+
 // Main stepper task for initialization and default movement
 void StepperTask(void* pvParameters);
 
