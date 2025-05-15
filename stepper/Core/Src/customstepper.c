@@ -46,7 +46,8 @@ typedef enum
   cctCANCEL              = 0x0A,
   cctSTATUS              = 0x0B,
   cctCONFIG_POWER_ENABLE = 0x0C,
-  cctCONFIG_PARAMETER    = 0x0D
+  cctCONFIG_PARAMETER    = 0x0D,
+  cctRESET               = 0x0E
 } CtrlCommandType_t;
 
 typedef struct CtrlCommand
@@ -312,6 +313,10 @@ else if (strcmp(argv[0], "reference") == 0) {
       }
     }
   } 
+  else if(strcmp(argv[0], "reset") == 0) {
+    // Handle reset command
+    cmd.head.type = cctRESET; // Matches "stepper reset"
+  }
   // Handle invalid command
   else {
     printf("passed invalid subcommand\r\nFAIL");
@@ -415,6 +420,12 @@ switch (cmd.head.type) {
         printf("Homing procedure completed successfully\r\nOK\r\n");
         break;
         }
+  case cctRESET:
+  //just rerun steppertask to recreate the stepper instance
+      if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+        printf("Failed to create StepperTask\r\n");
+        //Error_Handler();
+      }
   case cctREFERENCE_TIMEOUT:
       // Handle reference with timeout
       printf("Starting reference with timeout: %d ms\r\n", cmd.request.args.asReferenceWithTimeout.timeout);
@@ -695,12 +706,12 @@ void StepperTask(void *pvParameters)
 
     // Create base parameter structure
     L6474_BaseParameter_t baseParam = {
-        .stepMode   = smMICRO8,        // Gute Balance zwischen Auflösung und Drehmoment
-        .OcdTh      = ocdth1125mA,     // Ca. 1.125 A als Überstromgrenze
-        .TimeOnMin  = 10,              // µs – Beispielwert, ggf. durch Tests optimieren
-        .TimeOffMin = 15,              // µs – Beispielwert, ggf. durch Tests optimieren
-        .TorqueVal  = 80,              // 80% des max. Drehmoments
-        .TFast      = 5                // µs – Schaltzeitoptimierung
+        .stepMode   = smMICRO8,        
+        .OcdTh      = ocdth1125mA,     
+        .TimeOnMin  = 10,             
+        .TimeOffMin = 15,             
+        .TorqueVal  = 80,              
+        .TFast      = 5                
     };
 
 
