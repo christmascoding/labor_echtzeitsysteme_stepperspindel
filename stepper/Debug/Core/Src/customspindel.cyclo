@@ -1,4 +1,0 @@
-../Core/Src/customspindel.c:13:6:SpindleSetDirection	1
-../Core/Src/customspindel.c:19:6:SpindleSetDutyCycle	2
-../Core/Src/customspindel.c:34:6:SpindleEnaPWM	2
-../Core/Src/customspindel.c:53:6:SpindleTask	1
