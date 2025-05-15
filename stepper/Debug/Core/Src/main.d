@@ -44,7 +44,12 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/timers.h \
  ../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/task.h \
  ../../libs/LibL6474/inc/LibL6474.h \
- C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/stepper/Core/Inc/Stepper/LibL6474Config.h
+ /home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/Core/Inc/Stepper/LibL6474Config.h \
+ ../Core/Src/customstepper.h \
+ ../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/semphr.h \
+ ../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/queue.h \
+ ../Core/Src/customspindel.h ../../libs/LibSpindle/inc/Spindle.h \
+ ../../libs/LibRTOSConsole/inc/Console.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal.h:
 ../Core/Inc/stm32f7xx_hal_conf.h:
@@ -91,4 +96,10 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/timers.h:
 ../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/task.h:
 ../../libs/LibL6474/inc/LibL6474.h:
-C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/stepper/Core/Inc/Stepper/LibL6474Config.h:
+/home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/stepper/Core/Inc/Stepper/LibL6474Config.h:
+../Core/Src/customstepper.h:
+../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/semphr.h:
+../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/queue.h:
+../Core/Src/customspindel.h:
+../../libs/LibSpindle/inc/Spindle.h:
+../../libs/LibRTOSConsole/inc/Console.h:

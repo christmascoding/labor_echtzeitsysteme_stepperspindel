@@ -12,6 +12,8 @@
 
 #include "Console.h"
 
+int SpindleConsoleFunction( int argc, char** argv, void* ctx );
+
 /*!
  * The SpindleHandle_t handle is an instance pointer of the spindle library which is generated whenever
  * the SPINDLE_CreateInstance function returns with success.

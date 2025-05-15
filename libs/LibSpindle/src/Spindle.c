@@ -258,7 +258,7 @@ static void ReleaseCommandEvent( SpindleHandle_t h, SemaphoreHandle_t s )
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-static int SpindleConsoleFunction( int argc, char** argv, void* ctx )
+int SpindleConsoleFunction( int argc, char** argv, void* ctx )
 // --------------------------------------------------------------------------------------------------------------------
 {
 	//possible commands are

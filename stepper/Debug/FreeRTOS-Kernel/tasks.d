@@ -1,5 +1,5 @@
 FreeRTOS-Kernel/tasks.o: \
- C:/Users/hans-/Nextcloud/Documents/DHBW/Labor/Labor_HWNahesProg_Echtzeitsysteme/Semester4/Solution/libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/tasks.c \
+ /home/carl/Documents/Uni/Spindel_Project_Hardwarenahe_Programmierung_von_Echtzeitsystemen/labor_echtzeitsysteme_stepperspindel/libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/tasks.c \
  ../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/FreeRTOS.h \
  ../Core/Inc/FreeRTOSConfig.h \
  ../../libs/FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/projdefs.h \
