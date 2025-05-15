@@ -1,6 +1,7 @@
 "./Core/Src/Console/Console.o"
 "./Core/Src/Spindle/Spindle.o"
 "./Core/Src/Stepper/LibL6474x.o"
+"./Core/Src/customstepper.o"
 "./Core/Src/main.o"
 "./Core/Src/newlib_abs.o"
 "./Core/Src/stm32f7xx_hal_msp.o"
