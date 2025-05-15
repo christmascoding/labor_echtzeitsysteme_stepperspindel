@@ -6,13 +6,17 @@
 #include "main.h"    
 #include <stddef.h>  // for NULL
 #include "customstepper.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdbool.h>
 
 extern SPI_HandleTypeDef hspi1;
 extern L6474_Handle_t stepperHandle; 
 
-extern SPI_HandleTypeDef hspi1;
+StepperTaskArgs_t* stepperArgs = NULL;
 
 int stepspermm = 100; //steps/mm for the stepper motor
+
 // Function to calculate the number of steps needed to move a certain distance
 static int CalcAbsolute(double position, double currentPosition, int stepsPerMm) {
   double deltaPosition = position - currentPosition; // Calculate the difference in position
@@ -149,13 +153,11 @@ static int StepperConsoleFunction(int argc, char** argv, void* ctx)
   //register command like this: CONSOLE_RegisterCommand(consoleHandle, "stepper", "Control the stepper motor", StepperConsoleFunction, stepperArgs);
 
 	cmd.response       = &response;
-	cmd.head.requestID = h->nextRequestID;
-	h->nextRequestID += 1;
   // First decode the subcommand and all arguments
   if (argc == 0) {
     // No arguments provided
     printf("invalid number of arguments\r\nFAIL");
-    response->code = -1;
+    response.code = -1;
   }
 
   // Handle "move" command
@@ -323,22 +325,22 @@ switch (cmd.head.type) {
         printf("Starting homing procedure...\r\n");
         // Move towards the limit switch (home position)
         while (HAL_GPIO_ReadPin(LIMIT_SWITCH_GPIO_Port, LIMIT_SWITCH_Pin) == GPIO_PIN_SET) {
-        if (L6474_StepIncremental(h, -1) != 0) { // Move one step in the negative direction
-            printf("Error during homing\r\nFAIL\r\n");
-            return -1;
-        }
+          if (L6474_StepIncremental(h, -1) != 0) { // Move one step in the negative direction
+              printf("Error during homing\r\nFAIL\r\n");
+              return -1;
+          }
         }
 
         // Set the current position to 0.0 (home position)
         args->currentPosition = 0.0;
-        h->currentPosition = 0.0; // Update the handle's current position
+        args->currentPosition = 0.0; // Update the handle's current position
         printf("Homing complete: Home position set to 0.0 mm\r\n");
 
         // Move away from the limit switch slightly to avoid re-triggering
         if (L6474_StepIncremental(h, stepspermm) != 0) { // Move 1 mm away
-        printf("Error moving away from limit switch\r\nFAIL\r\n");
+          printf("Error moving away from limit switch\r\nFAIL\r\n");
         return -1;
-        }step
+        }
 
         // Move towards the reference switch (max position)
         int stepsToMax = 0;
@@ -353,9 +355,9 @@ switch (cmd.head.type) {
 
         // Calculate and set the MAXPOS
         stepperArgs->MAXPOS = (double)stepsToMax / stepspermm;
-        h->MAXPOS = stepperArgs->MAXPOS; // Update the handle's MAXPOS
+        //args->MAXPOS = stepperArgs->MAXPOS; // Update the handle's MAXPOS
         stepperArgs->currentPosition = stepperArgs->MAXPOS; // Set current position to MAXPOS
-        h->currentPosition = stepperArgs->MAXPOS; // Update the handle's current position
+        //args->currentPosition = stepperArgs->MAXPOS; // Update the handle's current position
         printf("Homing complete: Max position set to %.2f mm\r\n", stepperArgs->MAXPOS);
 
         // Move away from the reference switch slightly to avoid re-triggering
@@ -366,7 +368,7 @@ switch (cmd.head.type) {
 
         // Mark the stepper as homed
         stepperArgs->homed = true;
-        h->homed = true; // Update the handle's homed status
+        //h->homed = true; // Update the handle's homed status
         printf("Homing procedure completed successfully\r\nOK\r\n");
         break;
         }
@@ -642,7 +644,7 @@ void StepperTask(void *pvParameters)
     // Now create the handle, passing the stepperArgs as the pPWM parameter
     stepperHandle = L6474_CreateInstance(&p, NULL, NULL, NULL);
 
-    if (h == NULL) {
+    if (stepperHandle == NULL) {
         printf("Failed to create L6474 instance\r\n");
         vPortFree(stepperArgs); // Free memory if instance creation fails
         Error_Handler();

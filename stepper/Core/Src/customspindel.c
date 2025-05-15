@@ -2,6 +2,8 @@
 #include "main.h"
 
 
+extern ConsoleHandle_t c;
+
 typedef struct{
 	int direction;
 	TIM_HandleTypeDef *pwm;
