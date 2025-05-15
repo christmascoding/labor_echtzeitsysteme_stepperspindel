@@ -131,10 +131,11 @@ typedef struct CtrlCommand
   StepCommandResponse_t* response; // Response structure
 } StepperCtrlCommand_t;
 
+// console function, call with ctx!!!
 
 // Stepper Console Function
 // --------------------------------------------------------------------------------------------------------------------
-static int StepperConsoleFunction(int argc, char** argv, void* ctx)
+int StepperConsoleFunction(int argc, char** argv, void* ctx)
 // --------------------------------------------------------------------------------------------------------------------
 {
 	//possible commands are
