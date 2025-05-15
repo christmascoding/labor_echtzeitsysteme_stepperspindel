@@ -41,7 +41,6 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 // fic
-ConsoleHandle_t c = NULL;
 void vStepperPulseTask(void* pvParameters);
 /* USER CODE END PD */
 
@@ -54,7 +53,11 @@ void vStepperPulseTask(void* pvParameters);
 
 SPI_HandleTypeDef hspi1;
 
+TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim4;
+
+
 
 UART_HandleTypeDef huart3;
 
@@ -176,7 +179,17 @@ int main(void)
 
 
   // Create the task
-  if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS) {
+
+stepperArgs = pvPortMalloc(sizeof(StepperTaskArgs_t));
+if (!stepperArgs) { /* handle error */ }
+memset(stepperArgs, 0, sizeof(StepperTaskArgs_t));
+
+//initialize some stuffs
+
+
+
+// Pass stepperArgs as pvParameters to the task:
+if(xTaskCreate(StepperTask, "StepperTask", 1024, stepperArgs, tskIDLE_PRIORITY + 3, NULL) != pdPASS){
       printf("Failed to create StepperTask\r\n");
       Error_Handler();
   }

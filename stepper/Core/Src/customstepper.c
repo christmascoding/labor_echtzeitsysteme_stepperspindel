@@ -17,15 +17,17 @@ extern StepperTaskArgs_t* stepperArgs;
 
 int stepspermm = 100; //steps/mm for the stepper motor
 
-// Function to calculate the number of steps needed to move a certain distance
-static int CalcAbsolute(double position, double currentPosition, int stepsPerMm) {
-  double deltaPosition = position - currentPosition; // Calculate the difference in position
-  return (int)(deltaPosition * stepsPerMm);         // Convert to steps
+L6474x_Platform_t p; //platform needs to be global for async
+
+static int CalcAbsolute(double position, double currentPosition, StepperTaskArgs_t* ctx) {
+    double steps_per_mm = (ctx->steps_per_turn * ctx->res) / ctx->mm_per_turn;
+    double deltaPosition = position - currentPosition;
+    return (int)(deltaPosition * steps_per_mm);
 }
 
-// Function to calculate the number of steps for a relative move
-static int CalcRelative(double relativePosition, int stepsPerMm) {
-  return (int)(relativePosition * stepsPerMm);      // Convert relative position to steps
+static int CalcRelative(double relativePosition, StepperTaskArgs_t* ctx) {
+    double steps_per_mm = (ctx->steps_per_turn * ctx->res) / ctx->mm_per_turn;
+    return (int)(relativePosition * steps_per_mm);
 }
 
 //static int ConsoleWriteStream_ToStdErr(void* pContext, const char* pBuffer, int num)
@@ -35,101 +37,319 @@ static int CalcRelative(double relativePosition, int stepsPerMm) {
 //	return _write(2, pBuffer, num);
 //}
 /* USER CODE END 0 */
-typedef enum
-// --------------------------------------------------------------------------------------------------------------------
-{
-  cctNONE                = 0x00,
-  cctSTART               = 0x01,
-  cctSTOP                = 0x02,
-  cctMOVE_RELATIVE       = 0x03,
-  cctMOVE_ABSOLUTE       = 0x04,
-  cctMOVE_WITH_SPEED     = 0x05,
-  cctREFERENCE_ENABLE    = 0x06,
-  cctREFERENCE_TIMEOUT   = 0x07,
-  cctREFERENCE_SKIP      = 0x08,
-  cctPOSITION            = 0x09,
-  cctCANCEL              = 0x0A,
-  cctSTATUS              = 0x0B,
-  cctCONFIG_POWER_ENABLE = 0x0C,
-  cctCONFIG_PARAMETER    = 0x0D,
-  cctRESET               = 0x0E
-} CtrlCommandType_t;
+//// LETS GO GAMBLING!!!! (ASYNC)
+void setSpeed(StepperTaskArgs_t* ctx, int stepsPerSecond) {
+    int clk = HAL_RCC_GetHCLKFreq();
+    int quotient = clk / (stepsPerSecond * 2); // scale by 2 -> tip from lecturer
+    int i = 0;
+    while ((quotient / (i + 1)) > 65535) i++;
+    __HAL_TIM_SET_PRESCALER(ctx->htim4Handle, i);
+    __HAL_TIM_SET_AUTORELOAD(ctx->htim4Handle, (quotient / (i + 1)) - 1);
+    ctx->htim4Handle->Instance->CCR4 = ctx->htim4Handle->Instance->ARR / 2;
+}
 
-typedef struct CtrlCommand
-// --------------------------------------------------------------------------------------------------------------------
-{
-  struct
-  {
-    int requestID; // Unique request ID
-    CtrlCommandType_t type; // Command type
-  } head;
-  struct
-  {
-    union
-    {
-      struct
-      {
-        double relativePosition; // stepper move <RelPos> -r
-      } asMoveRelative;
+// Start the timer for a given number of pulses (async, chunked if needed)
+void startTim1(StepperTaskArgs_t* ctx, int pulses) {
+    int currentPulses = (pulses >= 65535) ? 65535 : pulses;
+    ctx->remainingPulses = pulses - currentPulses;
 
-      struct
-      {
-        double absolutePosition; // stepper move <AbsPos> -a
-      } asMoveAbsolute;
+    if (currentPulses > 0) {
+        HAL_TIM_OnePulse_Stop_IT(ctx->htim1Handle, TIM_CHANNEL_1);
+        __HAL_TIM_SET_AUTORELOAD(ctx->htim1Handle, currentPulses);
+        HAL_TIM_GenerateEvent(ctx->htim1Handle, TIM_EVENTSOURCE_UPDATE);
+        HAL_TIM_OnePulse_Start_IT(ctx->htim1Handle, TIM_CHANNEL_1);
+        __HAL_TIM_ENABLE(ctx->htim1Handle);
+    } else {
+        if (ctx->doneClb) ctx->doneClb(ctx->h);
+    }
+}
 
-      struct
-      {
-        double absolutePosition; // stepper move <AbsPos> -s <Speed_in_mm/min>
-        float speed;
-      } asMoveWithSpeed;
+// This should be called from HAL_TIM_PWM_PulseFinishedCallback
+void stepperTimPulseFinishedCallback(StepperTaskArgs_t* ctx, TIM_HandleTypeDef* htim) {
+    if (ctx->doneClb && ((htim->Instance->SR & (1 << 2)) == 0)) {
+        if (ctx->remainingPulses > 0) {
+            startTim1(ctx, ctx->remainingPulses);
+        } else {
+            ctx->doneClb(ctx->h);
+            ctx->currentlyrunning = 0;
+        }
+    }
+}
 
-      struct
-      {
-        int enablePowerOutputs; // stepper reference -e
-      } asReferenceEnable;
+// Async stepper start (non-blocking)
+int stepAsync(StepperTaskArgs_t* ctx, int dir, unsigned int numPulses, void (*doneClb)(L6474_Handle_t)) {
+    ctx->currentlyrunning = 1;
+    ctx->doneClb = doneClb;
 
-      struct
-      {
-        int timeout; // stepper reference -t <time>
-      } asReferenceWithTimeout;
+    HAL_GPIO_WritePin(STEP_DIR_GPIO_Port, STEP_DIR_Pin, !!dir);
 
-      struct
-      {
-        int skipReference; // stepper reference -s
-      } asReferenceSkip;
+    startTim1(ctx, numPulses);
 
-      struct
-      {
-        int position; // stepper position
-      } asPosition;
+    return 0;
+}
 
-      struct
-      {
-        int cancelOperation; // stepper cancel
-      } asCancel;
+// Cancel async stepper operation
+int stepCancelAsync(StepperTaskArgs_t* ctx) {
+    if (ctx->currentlyrunning) {
+        HAL_TIM_OnePulse_Stop_IT(ctx->htim1Handle, TIM_CHANNEL_1);
+        if (ctx->doneClb) ctx->doneClb(ctx->h);
+        ctx->currentlyrunning = 0;
+    }
+    return 0;
+}
 
-      struct
-      {
-        int status; // stepper status
-      } asStatus;
 
-      struct
-      {
-        int powerEnable; // stepper config powerena [-v 0|1]
-        int value;
-      } asConfigPowerEnable;
+// PowerENA Function
+static int powerEnable(StepperTaskArgs_t* context, StepperCtrlCommand_t* cmd) {
+    int ena = cmd->request.args.asConfigPowerEnable.powerEnable;
 
-      struct
-      {
-        char parameter[32]; // stepper config <parameter> [-v <value>]
-        int value;
-      } asConfigParameter;
+    // If no -v argument was given, just print the current state
+    if (cmd->head.type == cctCONFIG_POWER_ENABLE && cmd->request.args.asConfigPowerEnable.powerEnable == 0 && cmd->request.args.asConfigPowerEnable.value == 0) {
+        printf("%d\r\nOK\r\n", context->powered);
+        return 0;
+    }
 
-    } args;
-    SemaphoreHandle_t syncEvent; // Synchronization event
-  } request;
-  StepCommandResponse_t* response; // Response structure
-} StepperCtrlCommand_t;
+    // Otherwise, set the power output
+    if (ena != 0 && ena != 1) {
+        printf("Invalid argument for powerena\r\nFAIL\r\n");
+        return -1;
+    }
+    context->powered = ena;
+    if (L6474_SetPowerOutputs(context->h, ena) == 0) {
+        printf("OK\r\n");
+        return 0;
+    } else {
+        printf("FAIL\r\n");
+        return -1;
+    }
+}
+// config parameter hack function
+static int configParams(StepperTaskArgs_t* ctx, StepperCtrlCommand_t* cmd) {
+    const char* param = cmd->request.args.asConfigParameter.parameter;
+    int has_value = cmd->request.args.asConfigParameter.value_set;  // Use a flag to indicate if value is set (add this to your struct if needed)
+    int value = cmd->request.args.asConfigParameter.value;
+
+    // POWERENA
+    if (strcmp(param, "powerena") == 0) {
+        if (!has_value) {
+            printf("%d\r\nOK\r\n", ctx->powered);
+            return 0;
+        } else {
+            if (value != 0 && value != 1) {
+                printf("Invalid argument for powerena\r\nFAIL\r\n");
+                return -1;
+            }
+            ctx->powered = value;
+            if (L6474_SetPowerOutputs(ctx->h, value) == 0) {
+                printf("OK\r\n");
+                return 0;
+            } else {
+                printf("FAIL\r\n");
+                return -1;
+            }
+        }
+    }
+    // TORQUE
+    else if (strcmp(param, "torque") == 0) {
+        if (!has_value) {
+            int tval = 0;
+            L6474_GetProperty(ctx->h, L6474_PROP_TORQUE, &tval);
+            printf("%d\r\nOK\r\n", tval);
+            return 0;
+        } else {
+            if (L6474_SetProperty(ctx->h, L6474_PROP_TORQUE, value) == 0) {
+                printf("OK\r\n");
+                return 0;
+            } else {
+                printf("FAIL\r\n");
+                return -1;
+            }
+        }
+    }
+    // TIMEON
+    else if (strcmp(param, "timeon") == 0) {
+        if (ctx->powered == 1) return -1;
+        if (!has_value) {
+            int tval = 0;
+            L6474_GetProperty(ctx->h, L6474_PROP_TON, &tval);
+            printf("%d\r\nOK\r\n", tval);
+            return 0;
+        } else {
+            if (L6474_SetProperty(ctx->h, L6474_PROP_TON, value) == 0) {
+                printf("OK\r\n");
+                return 0;
+            } else {
+                printf("FAIL\r\n");
+                return -1;
+            }
+        }
+    }
+    // TIMEOFF
+    else if (strcmp(param, "timeoff") == 0) {
+        if (ctx->powered == 1) return -1;
+        if (!has_value) {
+            int tval = 0;
+            L6474_GetProperty(ctx->h, L6474_PROP_TOFF, &tval);
+            printf("%d\r\nOK\r\n", tval);
+            return 0;
+        } else {
+            if (L6474_SetProperty(ctx->h, L6474_PROP_TOFF, value) == 0) {
+                printf("OK\r\n");
+                return 0;
+            } else {
+                printf("FAIL\r\n");
+                return -1;
+            }
+        }
+    }
+    // TIMEFAST
+    else if (strcmp(param, "timefast") == 0) {
+        if (ctx->powered == 1) return -1;
+        if (!has_value) {
+            int tval = 0;
+            L6474_GetProperty(ctx->h, L6474_PROP_TFAST, &tval);
+            printf("%d\r\nOK\r\n", tval);
+            return 0;
+        } else {
+            if (L6474_SetProperty(ctx->h, L6474_PROP_TFAST, value) == 0) {
+                printf("OK\r\n");
+                return 0;
+            } else {
+                printf("FAIL\r\n");
+                return -1;
+            }
+        }
+    }
+    // THROVERCURR
+    else if (strcmp(param, "throvercurr") == 0) {
+        if (!has_value) {
+            int tval = 0;
+            L6474_GetProperty(ctx->h, L6474_PROP_OCDTH, &tval);
+            printf("%d\r\nOK\r\n", tval);
+            return 0;
+        } else {
+            if (L6474_SetProperty(ctx->h, L6474_PROP_OCDTH, value) == 0) {
+                printf("OK\r\n");
+                return 0;
+            } else {
+                printf("FAIL\r\n");
+                return -1;
+            }
+        }
+    }
+    // STEPMODE
+    else if (strcmp(param, "stepmode") == 0) {
+        if (ctx->powered == 1) return -1;
+        if (!has_value) {
+            printf("%d\r\nOK\r\n", ctx->res);
+            return 0;
+        } else {
+            int res = value;
+            L6474x_StepMode_t step_mode;
+            switch (res) {
+                case 1: step_mode = smFULL; break;
+                case 2: step_mode = smHALF; break;
+                case 4: step_mode = smMICRO4; break;
+                case 8: step_mode = smMICRO8; break;
+                case 16: step_mode = smMICRO16; break;
+                default:
+                    printf("Invalid step mode\r\nFAIL\r\n");
+                    return -1;
+            }
+            ctx->res = res;
+            if (L6474_SetStepMode(ctx->h, step_mode) == 0) {
+                printf("OK\r\n");
+                return 0;
+            } else {
+                printf("FAIL\r\n");
+                return -1;
+            }
+        }
+    }
+    // STEPSPER TURN
+    else if (strcmp(param, "stepsperturn") == 0) {
+        if (!has_value) {
+            printf("%d\r\nOK\r\n", ctx->steps_per_turn);
+            return 0;
+        } else {
+            ctx->steps_per_turn = value;
+            printf("OK\r\n");
+            return 0;
+        }
+    }
+    // MMPERTURN
+    else if (strcmp(param, "mmperturn") == 0) {
+        if (!has_value) {
+            printf("%f\r\nOK\r\n", ctx->mm_per_turn);
+            return 0;
+        } else {
+            ctx->mm_per_turn = (double)value;
+            printf("OK\r\n");
+            return 0;
+        }
+    }
+    // POSMIN
+    else if (strcmp(param, "posmin") == 0) {
+        if (!has_value) {
+            printf("%f\r\nOK\r\n", (double)ctx->position_min_steps * ctx->mm_per_turn / (ctx->steps_per_turn * ctx->res));
+            return 0;
+        } else {
+            ctx->position_min_steps = (int)(value * ctx->steps_per_turn * ctx->res / ctx->mm_per_turn);
+            printf("OK\r\n");
+            return 0;
+        }
+    }
+    // POSMAX
+    else if (strcmp(param, "posmax") == 0) {
+        if (!has_value) {
+            printf("%f\r\nOK\r\n", (double)ctx->position_max_steps * ctx->mm_per_turn / (ctx->steps_per_turn * ctx->res));
+            return 0;
+        } else {
+            ctx->position_max_steps = (int)(value * ctx->steps_per_turn * ctx->res / ctx->mm_per_turn);
+            printf("OK\r\n");
+            return 0;
+        }
+    }
+    // POSREF
+    else if (strcmp(param, "posref") == 0) {
+        if (!has_value) {
+            printf("%f\r\nOK\r\n", (double)ctx->position_ref_steps * ctx->mm_per_turn / (ctx->steps_per_turn * ctx->res));
+            return 0;
+        } else {
+            ctx->position_ref_steps = (int)(value * ctx->steps_per_turn * ctx->res / ctx->mm_per_turn);
+            printf("OK\r\n");
+            return 0;
+        }
+    }
+    else {
+        printf("Invalid parameter\r\nFAIL\r\n");
+        return -1;
+    }
+}
+//reset function for a steppah
+static int reset(StepperTaskArgs_t* stepper_ctx) {
+	L6474_BaseParameter_t param; // recreate baseparam
+	param.stepMode = smMICRO16;
+	param.OcdTh = ocdth6000mA;
+	param.TimeOnMin = 0x29;
+	param.TimeOffMin = 0x29;
+	param.TorqueVal = 0x26;
+	param.TFast = 0x19;
+
+	int result = 0;
+
+	result |= L6474_ResetStandBy(stepper_ctx->h);
+	result |= L6474_Initialize(stepper_ctx->h, &param);
+
+	result |= L6474_SetPowerOutputs(stepper_ctx->h, 0);
+ //call functions again
+	stepper_ctx->powered = 0;
+	stepper_ctx->referenced = 0;
+	stepper_ctx->currentlyrunning = 0;
+
+	return result;
+}
+
 
 // console function, call with ctx!!!
 
@@ -147,7 +367,7 @@ int StepperConsoleFunction(int argc, char** argv, void* ctx)
 
 
   StepperTaskArgs_t* args = (StepperTaskArgs_t*)ctx; // Cast ctx to StepperTaskArgs_t*
-  L6474_Handle_t h = args->h; // Access the stepper handle
+  L6474_Handle_t handle = args->h; // Access the stepper handle
 	StepCommandResponse_t response = { 0 };
 	StepperCtrlCommand_t cmd;
 
@@ -277,115 +497,193 @@ else if (strcmp(argv[0], "reference") == 0) {
   }
   // Execute the command based on cmd.head.type
 switch (cmd.head.type) {
-  case cctMOVE_RELATIVE:
-      // Handle relative move
-      printf("Moving by relative position: %.2f\r\n", cmd.request.args.asMoveRelative.relativePosition);
-      {
-          int steps = CalcRelative(cmd.request.args.asMoveRelative.relativePosition, stepspermm);
-          if (L6474_StepIncremental(h, steps) == 0) {
-              printf("Relative move command executed successfully\r\nOK\r\n");
-          } else {
-              printf("Error executing relative move command\r\nFAIL\r\n");
-              response.code = -1;
-          }
-      }
-      break;
+  case cctMOVE_RELATIVE: {
+    if (args->powered != 1) {
+        printf("Stepper not powered\r\n");
+        response.code = -1;
+        break;
+    }
+    if (args->referenced != 1) {
+        printf("Stepper not referenced\r\n");
+        response.code = -1;
+        break;
+    }
+    double rel_mm = cmd.request.args.asMoveRelative.relativePosition;
+    int steps = (int)(rel_mm * args->steps_per_turn * args->res / args->mm_per_turn);
 
-  case cctMOVE_ABSOLUTE:
-      // Handle absolute move
-      printf("Moving to absolute position: %.2f\r\n", cmd.request.args.asMoveAbsolute.absolutePosition);
-      {
-          int steps = CalcAbsolute(cmd.request.args.asMoveAbsolute.absolutePosition, 0.0, stepspermm); // Assuming currentPosition is 0.0 for now
-          if (L6474_StepIncremental(h, steps) == 0) {
-              printf("Move command executed successfully\r\nOK\r\n");
-          } else {
-              printf("Error executing move command\r\nFAIL\r\n");
-              response.code = -1;
-          }
-      }
-      break;
+    int abs_pos;
+    L6474_GetAbsolutePosition(args->h, &abs_pos);
+    int resulting_steps = abs_pos + steps;
 
-  case cctMOVE_WITH_SPEED:
-      // Handle move with speed
-      printf("Moving to position: %.2f at speed: %.2f mm/min\r\n",
-             cmd.request.args.asMoveWithSpeed.absolutePosition,
-             cmd.request.args.asMoveWithSpeed.speed);
-      // Add logic to handle speed if needed
-      {
-          int steps = CalcAbsolute(cmd.request.args.asMoveWithSpeed.absolutePosition, 0.0, stepspermm); // Assuming currentPosition is 0.0 for now
-          if (L6474_StepIncremental(h, steps) == 0) {
-              printf("Move with speed command executed successfully\r\nOK\r\n");
-          } else {
-              printf("Error executing move with speed command\r\nFAIL\r\n");
-          }
-      }
-      break;
+    if (resulting_steps < args->position_min_steps || resulting_steps > args->position_max_steps) {
+        printf("Position out of bounds\r\n");
+        response.code = -1;
+        break;
+    }
 
-      case cctREFERENCE_ENABLE: 
+    int result = L6474_StepIncremental(args->h, steps);
+    if (result == 0) {
+        printf("Relative move command executed successfully\r\nOK\r\n");
+    } else {
+        printf("Error executing relative move command\r\nFAIL\r\n");
+        response.code = -1;
+    }
+    break;
+}
+
+case cctMOVE_ABSOLUTE: {
+    if (args->powered != 1) {
+        printf("Stepper not powered\r\n");
+        response.code = -1;
+        break;
+    }
+    if (args->referenced != 1) {
+        printf("Stepper not referenced\r\n");
+        response.code = -1;
+        break;
+    }
+    double abs_mm = cmd.request.args.asMoveAbsolute.absolutePosition;
+    int target_steps = (int)(abs_mm * args->steps_per_turn * args->res / args->mm_per_turn);
+
+    int abs_pos;
+    L6474_GetAbsolutePosition(args->h, &abs_pos);
+    int steps = target_steps - abs_pos;
+
+    if (target_steps < args->position_min_steps || target_steps > args->position_max_steps) {
+        printf("Position out of bounds\r\n");
+        response.code = -1;
+        break;
+    }
+
+    int result = L6474_StepIncremental(args->h, steps);
+    if (result == 0) {
+        printf("Move command executed successfully\r\nOK\r\n");
+    } else {
+        printf("Error executing move command\r\nFAIL\r\n");
+        response.code = -1;
+    }
+    break;
+}
+
+case cctMOVE_WITH_SPEED: {
+    if (args->powered != 1) {
+        printf("Stepper not powered\r\n");
+        response.code = -1;
+        break;
+    }
+    if (args->referenced != 1) {
+        printf("Stepper not referenced\r\n");
+        response.code = -1;
+        break;
+    }
+    double abs_mm = cmd.request.args.asMoveWithSpeed.absolutePosition;
+    double speed = cmd.request.args.asMoveWithSpeed.speed; // mm/min
+
+    int steps_per_second = (int)(speed * args->steps_per_turn * args->res / (60.0 * args->mm_per_turn));
+    if (steps_per_second < 1) {
+        printf("Speed too small\r\n");
+        response.code = -1;
+        break;
+    }
+    setSpeed(args, steps_per_second);
+
+    int target_steps = (int)(abs_mm * args->steps_per_turn * args->res / args->mm_per_turn);
+    int abs_pos;
+    L6474_GetAbsolutePosition(args->h, &abs_pos);
+    int steps = target_steps - abs_pos;
+
+    if (target_steps < args->position_min_steps || target_steps > args->position_max_steps) {
+        printf("Position out of bounds\r\n");
+        response.code = -1;
+        break;
+    }
+
+    int result = L6474_StepIncremental(args->h, steps);
+    if (result == 0) {
+        printf("Move with speed command executed successfully\r\nOK\r\n");
+    } else {
+        printf("Error executing move with speed command\r\nFAIL\r\n");
+        response.code = -1;
+    }
+    break;
+}
+    case cctREFERENCE_TIMEOUT:
+    case cctREFERENCE_ENABLE: 
       {
-        printf("Starting homing procedure...\r\n");
-        // Move towards the limit switch (home position)
-        while (HAL_GPIO_ReadPin(LIMIT_SWITCH_GPIO_Port, LIMIT_SWITCH_Pin) == GPIO_PIN_SET) {
-          if (L6474_StepIncremental(h, -1) != 0) { // Move one step in the negative direction
-              printf("Error during homing\r\nFAIL\r\n");
+          int timeout = 0;
+          if(cmd.head.type == cctREFERENCE_TIMEOUT){
+              timeout = cmd.request.args.asReferenceWithTimeout.timeout; // timeout in seconds
+          }
+
+          printf("Starting homing procedure...\r\n");
+          uint32_t startTick = xTaskGetTickCount();
+          bool timeoutReached = false;
+
+          // Move towards the limit switch (home position)
+          while (HAL_GPIO_ReadPin(REFERENCE_MARK_GPIO_Port, REFERENCE_MARK_Pin) == GPIO_PIN_SET) {
+              if (timeout > 0 && (xTaskGetTickCount() - startTick) > pdMS_TO_TICKS(timeout * 1000)) {
+                  printf("Timeout during homing\r\nFAIL\r\n");
+                  timeoutReached = true;
+                  break;
+              }
+              if (L6474_StepIncremental(handle, -10) != 0) {
+                  printf("Error during homing\r\nFAIL\r\n");
+                  return -1;
+              }
+              vTaskDelay(pdMS_TO_TICKS(2));
+          }
+
+          if (timeoutReached) break;
+
+          args->currentPosition = 0.0;
+          printf("Homing complete: Home position set to 0.0 mm\r\n");
+
+          // Move away from the limit switch slightly to avoid re-triggering
+          if (L6474_StepIncremental(handle, stepspermm) != 0) {
+              printf("Error moving away from limit switch\r\nFAIL\r\n");
               return -1;
           }
-        }
 
-        // Set the current position to 0.0 (home position)
-        args->currentPosition = 0.0;
-        args->currentPosition = 0.0; // Update the handle's current position
-        printf("Homing complete: Home position set to 0.0 mm\r\n");
+          // Move towards the reference switch (max position)
+          int stepsToMax = 0;
+          startTick = xTaskGetTickCount();
+          timeoutReached = false;
+          while (HAL_GPIO_ReadPin(LIMIT_SWITCH_GPIO_Port, LIMIT_SWITCH_Pin) == GPIO_PIN_SET) {
+              if (timeout > 0 && (xTaskGetTickCount() - startTick) > pdMS_TO_TICKS(timeout * 1000)) {
+                  printf("Timeout during max position search\r\nFAIL\r\n");
+                  timeoutReached = true;
+                  break;
+              }
+              if (L6474_StepIncremental(handle, 10) != 0) {
+                  printf("Error during homing\r\nFAIL\r\n");
+                  return -1;
+              }
+              stepsToMax++;
+              vTaskDelay(pdMS_TO_TICKS(2));
+          }
 
-        // Move away from the limit switch slightly to avoid re-triggering
-        if (L6474_StepIncremental(h, stepspermm) != 0) { // Move 1 mm away
-          printf("Error moving away from limit switch\r\nFAIL\r\n");
-        return -1;
-        }
+          if (timeoutReached) break;
 
-        // Move towards the reference switch (max position)
-        int stepsToMax = 0;
-        while (HAL_GPIO_ReadPin(REFERENCE_MARK_GPIO_Port, REFERENCE_MARK_Pin) == GPIO_PIN_SET) {
-        // Move one step at a time using L6474_StepIncremental
-        if (L6474_StepIncremental(h, 1) != 0) { // Move one step in the positive direction
-            printf("Error during homing\r\nFAIL\r\n");
-            return -1;
-        }
-        stepsToMax++;
-        }
+          stepperArgs->MAXPOS = (double)stepsToMax / stepspermm;
+          stepperArgs->currentPosition = stepperArgs->MAXPOS;
+          printf("Homing complete: Max position set to %.2f mm\r\n", stepperArgs->MAXPOS);
 
-        // Calculate and set the MAXPOS
-        stepperArgs->MAXPOS = (double)stepsToMax / stepspermm;
-        //args->MAXPOS = stepperArgs->MAXPOS; // Update the handle's MAXPOS
-        stepperArgs->currentPosition = stepperArgs->MAXPOS; // Set current position to MAXPOS
-        //args->currentPosition = stepperArgs->MAXPOS; // Update the handle's current position
-        printf("Homing complete: Max position set to %.2f mm\r\n", stepperArgs->MAXPOS);
+          // Move away from the reference switch slightly to avoid re-triggering
+          if (L6474_StepIncremental(handle, -stepspermm) != 0) {
+              printf("Error moving away from reference switch\r\nFAIL\r\n");
+              return -1;
+          }
 
-        // Move away from the reference switch slightly to avoid re-triggering
-        if (L6474_StepIncremental(h, -stepspermm) != 0) { // Move 1 mm away
-        printf("Error moving away from reference switch\r\nFAIL\r\n");
-        return -1;
-        }
-
-        // Mark the stepper as homed
-        stepperArgs->homed = true;
-        //h->homed = true; // Update the handle's homed status
-        printf("Homing procedure completed successfully\r\nOK\r\n");
-        break;
-        }
+          stepperArgs->homed = true;
+          printf("Homing procedure completed successfully\r\nOK\r\n");
+          break;
+      }
   case cctRESET:
   //just rerun steppertask to recreate the stepper instance
       if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
         printf("Failed to create StepperTask\r\n");
         //Error_Handler();
       }
-  case cctREFERENCE_TIMEOUT:
-      // Handle reference with timeout
-      printf("Starting reference with timeout: %d ms\r\n", cmd.request.args.asReferenceWithTimeout.timeout);
-      // Add logic to handle timeout
-      printf("Reference with timeout completed\r\nOK\r\n");
-      break;
-
   case cctREFERENCE_SKIP:
       // Handle reference skip
       printf("Skipping reference\r\n");
@@ -416,19 +714,12 @@ switch (cmd.head.type) {
       break;
 
   case cctCONFIG_POWER_ENABLE:
-      // Handle power enable configuration
-      printf("Setting power enable to: %d\r\n", cmd.request.args.asConfigPowerEnable.powerEnable);
-      // Add logic to enable/disable power
-      printf("Power enable set successfully\r\nOK\r\n");
-      break;
+    powerEnable(args, &cmd);
+    break;
 
   case cctCONFIG_PARAMETER:
-      // Handle parameter configuration
-      printf("Setting parameter: %s to value: %d\r\n",
-             cmd.request.args.asConfigParameter.parameter,
-             cmd.request.args.asConfigParameter.value);
-      // Add logic to configure the parameter
-      printf("Parameter configured successfully\r\nOK\r\n");
+      // Call the custom config function
+      configParams(args, &cmd);
       break;
 
   default:
@@ -590,11 +881,16 @@ int StepTimerAsync(void* pPWM, int dir, unsigned int numPulses, void (*doneClb)(
     return (res == pdPASS) ? 0 : -1;
 }
 
-int StepSynchronous(void* pPWM, int dir, unsigned int numPulses) {
-  (void)pPWM; // Unused in this implementation
+int StepSynchronous(void* pPWM, int dir, int numPulses) {
+	int direction = 1;
+	if(numPulses < 0){
+		numPulses = -numPulses;
+		direction = 0;
+	}
+	(void)pPWM; // Unused in this implementation
 
   // Set direction pin
-  HAL_GPIO_WritePin(STEP_DIR_GPIO_Port, STEP_DIR_Pin, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(STEP_DIR_GPIO_Port, STEP_DIR_Pin, direction);
 
   // Generate pulses
   for (unsigned int i = 0; i < numPulses; ++i) {
@@ -612,89 +908,67 @@ int StepSynchronous(void* pPWM, int dir, unsigned int numPulses) {
 
 void StepperTask(void *pvParameters)
 {
-    // Allocate memory for the StepperTaskArgs_t structure
-    stepperArgs = pvPortMalloc(sizeof(StepperTaskArgs_t));
-    if (!stepperArgs) {
-        printf("Failed to allocate memory for StepperTaskArgs_t\r\n");
-        Error_Handler();
-    }
+    StepperTaskArgs_t* args = (StepperTaskArgs_t*)pvParameters;
 
-    // Initialize the StepperTaskArgs_t structure
-    stepperArgs->pPWM = NULL; // Placeholder for PWM context, if needed
-    stepperArgs->dir = 0;     // Default direction
-    stepperArgs->numPulses = 0;
-    stepperArgs->doneClb = NULL;
-    stepperArgs->h = NULL;
-    stepperArgs->taskHandle = NULL;
-    stepperArgs->currentPosition = 0.0; // Initialize the current position to 0.0 mm
-    stepperArgs->homed = false;        // Initialize as not homed
-    stepperArgs->MAXPOS = 0.0;         // Initialize max position to 0.0 mm
+    // Example: pass handles via pvParameters or set them globally before task creation
+    extern SPI_HandleTypeDef hspi1;
+    extern TIM_HandleTypeDef htim1;
+    extern TIM_HandleTypeDef htim4;
 
-    // Pass all function pointers required by the stepper library
-    // to a separate platform abstraction structure
+    // Initialize hardware
+    HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET);
+    HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
+
+    // Platform abstraction
     L6474x_Platform_t p;
     p.malloc     = StepLibraryMalloc;
     p.free       = StepLibraryFree;
     p.transfer   = StepDriverSpiTransfer;
     p.reset      = StepDriverReset;
     p.sleep      = StepLibraryDelay;
-    //p.stepAsync  = StepTimerAsync;
-    p.step       = StepSynchronous;
-    //p.cancelStep = StepTimerCancelAsync;
+    p.stepAsync  = stepAsync;           // Your async function
+    p.cancelStep = stepCancelAsync;     // Your cancel function
 
-    // Now create the handle, passing the stepperArgs as the pPWM parameter
-    stepperHandle = L6474_CreateInstance(&p, NULL, NULL, NULL);
+    // Create stepper instance
+    args->h = L6474_CreateInstance(&p, &hspi1, NULL, &htim1);
+    args->htim1Handle = &htim1;
+    args->htim4Handle = &htim4;
 
-    if (stepperHandle == NULL) {
-        printf("Failed to create L6474 instance\r\n");
-        vPortFree(stepperArgs); // Free memory if instance creation fails
-        Error_Handler();
-    } else {
-        printf("Stepper motor instance created\r\n");
-    }
+    // Set default parameters
+    args->steps_per_turn = STEPS_PER_TURN;
+    args->res = RESOLUTION;
+    args->mm_per_turn = MM_PER_TURN;
 
-    //stepperArgs->h = h; // Store the handle in the arguments structure
+    args->position_min_steps = 0;
+    args->position_max_steps = 100000;
+    args->position_ref_steps = 0;
 
-    int result = 0;
+    args->powered = 0;
+    args->referenced = 0;
+    args->currentlyrunning = 0;
+    args->homed = false;
+    args->currentPosition = 0.0;
+    args->MAXPOS = 0.0;
 
-    // Create base parameter structure
+    // Optionally: initialize driver with base parameters
     L6474_BaseParameter_t baseParam = {
-        .stepMode   = smMICRO8,        
-        .OcdTh      = ocdth1125mA,     
-        .TimeOnMin  = 10,             
-        .TimeOffMin = 15,             
-        .TorqueVal  = 80,              
-        .TFast      = 5                
+        .stepMode   = smMICRO8,
+        .OcdTh      = ocdth1125mA,
+        .TimeOnMin  = 10,
+        .TimeOffMin = 15,
+        .TorqueVal  = 80,
+        .TFast      = 5
     };
+    L6474_SetBaseParameter(&baseParam);
+    L6474_ResetStandBy(args->h);
+    L6474_Initialize(args->h, &baseParam);
+    L6474_SetPowerOutputs(args->h, 1);
 
-
-    // Set default base parameters
-    result |= L6474_SetBaseParameter(&baseParam);
-    result |= L6474_ResetStandBy(stepperHandle);
-    // Initialize the driver with the base parameters
-    result |= L6474_Initialize(stepperHandle, &baseParam);
-    result |= L6474_SetPowerOutputs(stepperHandle, 1);
-
-    // In case we have no error, we can enable the drivers
-    // and then we step a bit
-    if (result == 0) {
-        result |= L6474_StepIncremental(stepperHandle, 1000);
-        if (result == 0) {
-            printf("Stepper motor moved 1000 steps\r\n");
-        } else {
-            printf("Error during step operation\r\n");
-        }
-    } else {
-        // Error handling
-        printf("Error during initialization: %d\r\n", result);
-        Error_Handler();
+    // JANK SHIT LOL
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
-    while(1){
-    	vTaskDelay(pdMS_TO_TICKS(1));
-    }
-    // Free the memory for stepperArgs after use
-    //vPortFree(stepperArgs);
 
-    // Delete the task after initialization
+    // Cleanup (never reached in normal operation)
     vTaskDelete(NULL);
 }
