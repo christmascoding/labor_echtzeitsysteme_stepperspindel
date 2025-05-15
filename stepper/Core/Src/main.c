@@ -59,6 +59,8 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart3;
 
 L6474_Handle_t stepperHandle = NULL; //stepper handle for laster use
+ConsoleHandle_t c = NULL;
+StepperTaskArgs_t* stepperArgs = NULL;
 
 
 /* USER CODE BEGIN PV */
@@ -174,15 +176,15 @@ int main(void)
 
 
   // Create the task
-  if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+  if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS) {
       printf("Failed to create StepperTask\r\n");
       Error_Handler();
   }
   // Create Spindle Task
-  if (xTaskCreate(SpindleTask, "SpindleTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
-        printf("Failed to create SpindleTask\r\n");
-        Error_Handler();
-    }
+  //if (xTaskCreate(SpindleTask, "SpindleTask", 256, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS) {
+  //      printf("Failed to create SpindleTask\r\n");
+  //      Error_Handler();
+  //  }
   
 
   (void)CapabilityFunc;
@@ -220,11 +222,11 @@ int initConsole() {
     printf("Failed to register spindle command.\n");
   }
 
-  //if (CONSOLE_RegisterCommand(c, "stepper", "Moves the stepper", StepperConsoleFunction , NULL) == 0) {
-  //  printf("Stepper command registered successfully.\n");
-  //} else {
-  //  printf("Failed to register stepper command.\n");
-  //}
+  if (CONSOLE_RegisterCommand(c, "stepper", "Moves the stepper", StepperConsoleFunction , stepperArgs) == 0) {
+    printf("Stepper command registered successfully.\n");
+  } else {
+    printf("Failed to register stepper command.\n");
+  }
   
   
 }

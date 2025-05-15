@@ -13,7 +13,7 @@
 extern SPI_HandleTypeDef hspi1;
 extern L6474_Handle_t stepperHandle; 
 
-StepperTaskArgs_t* stepperArgs = NULL;
+extern StepperTaskArgs_t* stepperArgs;
 
 int stepspermm = 100; //steps/mm for the stepper motor
 
@@ -613,7 +613,7 @@ int StepSynchronous(void* pPWM, int dir, unsigned int numPulses) {
 void StepperTask(void *pvParameters)
 {
     // Allocate memory for the StepperTaskArgs_t structure
-    StepperTaskArgs_t* stepperArgs = pvPortMalloc(sizeof(StepperTaskArgs_t));
+    stepperArgs = pvPortMalloc(sizeof(StepperTaskArgs_t));
     if (!stepperArgs) {
         printf("Failed to allocate memory for StepperTaskArgs_t\r\n");
         Error_Handler();
@@ -689,9 +689,11 @@ void StepperTask(void *pvParameters)
         printf("Error during initialization: %d\r\n", result);
         Error_Handler();
     }
-
+    while(1){
+    	vTaskDelay(pdMS_TO_TICKS(1));
+    }
     // Free the memory for stepperArgs after use
-    vPortFree(stepperArgs);
+    //vPortFree(stepperArgs);
 
     // Delete the task after initialization
     vTaskDelete(NULL);
