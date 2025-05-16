@@ -1,69 +1,71 @@
 #include "customspindel.h"
 #include "main.h"
 
-
 extern ConsoleHandle_t c;
 
-typedef struct{
+typedef struct {
 	int direction;
-	TIM_HandleTypeDef *pwm;
-}SpindleContext;
+	TIM_HandleTypeDef pwm;
+} SpindleContext;
 
-extern TIM_HandleTypeDef htim2;
-extern ConsoleHandle_t c;
+void SPINDLE_SetDirection(SpindleHandle_t h, void* context, int direction) {
+	(void) h;
 
-void SpindleSetDirection(SpindleHandle_t h, void* context, int direction){
-	(void)h;
 	SpindleContext* ctx = (SpindleContext*) context;
+
 	ctx->direction = direction;
 }
 
-void SpindleSetDutyCycle(SpindleHandle_t h, void* context, float dutyCycle){
-	(void)h;
+void SPINDLE_SetDutyCycle(SpindleHandle_t h, void* context, float duty) {
+	(void) h;
+
 	SpindleContext* ctx = (SpindleContext*) context;
 
-	int ar = TIM2->ARR;
+	int arr = TIM2->ARR;
 
-	if(ctx->direction){
+	if (ctx->direction) {
 		TIM2->CCR3 = 0;
-		TIM2->CCR4 = (int)((float)ar * dutyCycle);
+		TIM2->CCR4 = (int)((float)arr * duty);
 	}
-	else{
-		TIM2->CCR3 = (int)((float)ar * dutyCycle);
+	else {
+		TIM2->CCR3 = (int)((float)arr * duty);
 		TIM2->CCR4 = 0;
 	}
 }
-void SpindleEnaPWM(SpindleHandle_t h, void* context, int ena){
-	(void)h;
+
+void SPINDLE_EnaPWM(SpindleHandle_t h, void* context, int enable) {
+	(void) h;
+
 	SpindleContext* ctx = (SpindleContext*) context;
 
-	if(ena){
-		HAL_TIM_PWM_Start(ctx->pwm, TIM_CHANNEL_3);
-		HAL_TIM_PWM_Start(ctx->pwm, TIM_CHANNEL_4);
-		HAL_GPIO_WritePin(SPINDLE_ENA_L_GPIO_Port, SPINDLE_ENA_L_Pin, 1);
-		HAL_GPIO_WritePin(SPINDLE_ENA_R_GPIO_Port, SPINDLE_ENA_R_Pin, 1);
+	HAL_GPIO_WritePin(SPINDLE_ENA_L_GPIO_Port, SPINDLE_ENA_L_Pin, enable);
+	HAL_GPIO_WritePin(SPINDLE_ENA_R_GPIO_Port, SPINDLE_ENA_R_Pin, enable);
+
+	if (enable) {
+		HAL_TIM_PWM_Start(&ctx->pwm, TIM_CHANNEL_3);
+		HAL_TIM_PWM_Start(&ctx->pwm, TIM_CHANNEL_4);
 	}
-	else{
-		HAL_TIM_PWM_Stop(ctx->pwm, TIM_CHANNEL_3);
-		HAL_TIM_PWM_Stop(ctx->pwm, TIM_CHANNEL_4);
-		HAL_GPIO_WritePin(SPINDLE_ENA_L_GPIO_Port, SPINDLE_ENA_L_Pin, 0);
-		HAL_GPIO_WritePin(SPINDLE_ENA_R_GPIO_Port, SPINDLE_ENA_R_Pin, 0);
+	else {
+		HAL_TIM_PWM_Stop(&ctx->pwm, TIM_CHANNEL_3);
+		HAL_TIM_PWM_Stop(&ctx->pwm, TIM_CHANNEL_4);
 	}
 }
 
+SpindleContext ctx;
 
-void SpindleTask(void* pvParameters){
-	SpindleContext ctx;
-
+void init_spindle(ConsoleHandle_t console_handle, TIM_HandleTypeDef tim_handle) {
 	ctx.direction = 0;
-	ctx.pwm = &htim2;
-	SpindlePhysicalParams_t s;
-	s.maxRPM             =  9000.0f;
-	s.minRPM             = -9000.0f;
-	s.absMinRPM          =  1600.0f;
-	s.setDirection       = SpindleSetDirection;
-	s.setDutyCycle       = SpindleSetDutyCycle;
-	s.enaPWM             = SpindleEnaPWM;
-	s.context            = &ctx;
-	SPINDLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 3, c, &s);
+	ctx.pwm = tim_handle;
+
+	// set up spindle
+	SpindlePhysicalParams_t spindle_params;
+	spindle_params.maxRPM             =  9000.0f;
+	spindle_params.minRPM             = -9000.0f;
+	spindle_params.absMinRPM          =  1600.0f;
+	spindle_params.setDirection       = SPINDLE_SetDirection;
+	spindle_params.setDutyCycle       = SPINDLE_SetDutyCycle;
+	spindle_params.enaPWM             = SPINDLE_EnaPWM;
+	spindle_params.context            = &ctx;
+
+	SPINDLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 3, console_handle, &spindle_params);
 }
