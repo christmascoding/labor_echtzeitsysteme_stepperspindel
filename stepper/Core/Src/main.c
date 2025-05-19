@@ -117,13 +117,47 @@ void vApplicationStackOverflowHook( TaskHandle_t pxTask, char *pcTaskName )
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+// --------------------------------------------------------------------------------------------------------------------
+static int CapabilityFunc( int argc, char** argv, void* ctx )
+// --------------------------------------------------------------------------------------------------------------------
+{
+	(void)argc;
+	(void)argv;
+	(void)ctx;
+	printf("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\r\nOK",
+	    0, // has spindle
+		0, // has spindle status
+		0, // has stepper
+		0, // has stepper move relative
+		0, // has stepper move speed
+		0, // has stepper move async
+		0, // has stepper status
+		0, // has stepper refrun
+		0, // has stepper refrun timeout
+		0, // has stepper refrun skip
+		0, // has stepper refrun stay enabled
+		0, // has stepper reset
+		0, // has stepper position
+		0, // has stepper config
+		0, // has stepper config torque
+		0, // has stepper config throvercurr
+		0, // has stepper config powerena
+		0, // has stepper config stepmode
+		0, // has stepper config timeoff
+		0, // has stepper config timeon
+		0, // has stepper config timefast
+		0, // has stepper config mmperturn
+		0, // has stepper config posmax
+		0, // has stepper config posmin
+		0, // has stepper config posref
+		0, // has stepper config stepsperturn
+		0  // has stepper cancel
+	);
+	return 0;
+}
 
-/* USER CODE END 0 */
 
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
+
 int main(void)
 {
 
@@ -162,28 +196,21 @@ int main(void)
 
 
   // Create the task
+  stepperArgs = pvPortMalloc(sizeof(StepperTaskArgs_t));
+  if (!stepperArgs) { /* handle error */ }
+  memset(stepperArgs, 0, sizeof(StepperTaskArgs_t));
 
-stepperArgs = pvPortMalloc(sizeof(StepperTaskArgs_t));
-if (!stepperArgs) { /* handle error */ }
-memset(stepperArgs, 0, sizeof(StepperTaskArgs_t));
-
-//initialize some stuffs
-
-
-
-// Pass stepperArgs as pvParameters to the task:
-if(xTaskCreate(StepperTask, "StepperTask", 1024, stepperArgs, tskIDLE_PRIORITY + 3, NULL) != pdPASS){
+  if(xTaskCreate(StepperTask, "StepperTask", 1024, stepperArgs, tskIDLE_PRIORITY + 3, NULL) != pdPASS){
       printf("Failed to create StepperTask\r\n");
       Error_Handler();
   }
   // Create Spindle Task
-  //if (xTaskCreate(SpindleTask, "SpindleTask", 256, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS) {
-  //      printf("Failed to create SpindleTask\r\n");
-  //      Error_Handler();
-  //  }
+  ConsoleHandle_t console_handle = CONSOLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 5  );
+
+  init_spindle(console_handle, htim2);
   
 
-  //(void)CapabilityFunc;
+  (void)CapabilityFunc;
   initConsole();
 
   vTaskStartScheduler();
@@ -205,6 +232,28 @@ if(xTaskCreate(StepperTask, "StepperTask", 1024, stepperArgs, tskIDLE_PRIORITY +
   * @brief System Clock Configuration
   * @retval None
   */
+
+int initConsole() {
+  c = CONSOLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 5  );
+
+  CONSOLE_RegisterCommand(c, "capability", "prints a specified string of capability bits", CapabilityFunc, NULL);
+
+  if (CONSOLE_RegisterCommand(c, "spindle", "Moves the spindle", SpindleConsoleFunction, NULL) == 0) {
+    printf("Spindle command registered successfully.\n");
+  } else {
+    printf("Failed to register spindle command.\n");
+  }
+
+  if (CONSOLE_RegisterCommand(c, "stepper", "Moves the stepper", StepperConsoleFunction , stepperArgs) == 0) {
+    printf("Stepper command registered successfully.\n");
+  } else {
+    printf("Failed to register stepper command.\n");
+  }
+  
+  
+}
+
+
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
