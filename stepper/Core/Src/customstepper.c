@@ -14,6 +14,9 @@ extern SPI_HandleTypeDef hspi1;
 extern L6474_Handle_t stepperHandle; 
 
 extern StepperTaskArgs_t* stepperArgs;
+extern SPI_HandleTypeDef hspi1;
+extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim4;
 
 int stepspermm = 100; //steps/mm for the stepper motor
 
@@ -81,7 +84,7 @@ int stepAsync(StepperTaskArgs_t* ctx, int dir, unsigned int numPulses, void (*do
     ctx->currentlyrunning = 1;
     ctx->doneClb = doneClb;
 
-    HAL_GPIO_WritePin(STEP_DIR_GPIO_Port, STEP_DIR_Pin, !!dir);
+    HAL_GPIO_WritePin(STEP_DIR_GPIO_Port, STEP_DIR_Pin, dir);
 
     startTim1(ctx, numPulses);
 
@@ -688,6 +691,8 @@ case cctMOVE_WITH_SPEED: {
       // Handle reference skip
       printf("Skipping reference\r\n");
       // Add logic to skip reference
+      args->referenced = 1; // Set referenced flag
+      L6474_SetAbsolutePosition(args->h, 0);
       printf("Reference skipped successfully\r\nOK\r\n");
       break;
 
@@ -788,7 +793,7 @@ static int StepDriverSpiTransfer(void* pIO, char* pRX, const char* pTX, unsigned
 static void StepDriverReset(void* pGPO, const int ena)
 {
   (void)pGPO; // Unused in this implementation
-  HAL_GPIO_WritePin(STEP_RSTN_GPIO_Port, STEP_RSTN_Pin, !ena ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(STEP_RSTN_GPIO_Port, STEP_RSTN_Pin, !ena);
 }
 
 static void StepLibraryDelay(unsigned int ms)
@@ -910,10 +915,7 @@ void StepperTask(void *pvParameters)
 {
     StepperTaskArgs_t* args = (StepperTaskArgs_t*)pvParameters;
 
-    // Example: pass handles via pvParameters or set them globally before task creation
-    extern SPI_HandleTypeDef hspi1;
-    extern TIM_HandleTypeDef htim1;
-    extern TIM_HandleTypeDef htim4;
+
 
     // Initialize hardware
     HAL_GPIO_WritePin(STEP_SPI_CS_GPIO_Port, STEP_SPI_CS_Pin, GPIO_PIN_SET);
@@ -952,18 +954,22 @@ void StepperTask(void *pvParameters)
 
     // Optionally: initialize driver with base parameters
     L6474_BaseParameter_t baseParam = {
-        .stepMode   = smMICRO8,
+        .stepMode   = smMICRO16,
         .OcdTh      = ocdth1125mA,
         .TimeOnMin  = 10,
         .TimeOffMin = 15,
         .TorqueVal  = 80,
         .TFast      = 5
     };
-    L6474_SetBaseParameter(&baseParam);
-    L6474_ResetStandBy(args->h);
-    L6474_Initialize(args->h, &baseParam);
-    L6474_SetPowerOutputs(args->h, 1);
+    int result = 0;
 
+    result |= L6474_SetBaseParameter(&baseParam);
+    result |= L6474_ResetStandBy(args->h);
+    result |= L6474_Initialize(args->h, &baseParam);
+    result |= L6474_SetPowerOutputs(args->h, 0);
+    if(result != 0){
+    	printf("Critical Error initializing Stepper, result: %d\n", result);
+    }
     // JANK SHIT LOL
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(100));
