@@ -106,7 +106,7 @@ static int CapabilityFunc( int argc, char** argv, void* ctx )
 	(void)argv;
 	(void)ctx;
 	printf("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\r\nOK",
-	    0, // has spindle
+	  0, // has spindle
 		0, // has spindle status
 		0, // has stepper
 		0, // has stepper move relative
@@ -175,19 +175,18 @@ int main(void)
 
 
   // Create the task
-  if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS) {
-      printf("Failed to create StepperTask\r\n");
-      Error_Handler();
-  }
+  //if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS) {
+  //    printf("Failed to create StepperTask\r\n");
+  //    Error_Handler();
+  //}
   // Create Spindle Task
-  //if (xTaskCreate(SpindleTask, "SpindleTask", 256, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS) {
-  //      printf("Failed to create SpindleTask\r\n");
-  //      Error_Handler();
-  //  }
+  ConsoleHandle_t console_handle = CONSOLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 5  );
+
+  init_spindle(console_handle, htim2);
   
 
   (void)CapabilityFunc;
-  initConsole();
+  initConsole(console_handle);
 
   vTaskStartScheduler();
   /* USER CODE END 2 */
@@ -210,16 +209,8 @@ int main(void)
   * @retval None
   */
 
-int initConsole() {
-  c = CONSOLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 5  );
-
+int initConsole(ConsoleHandle_t c) {
   CONSOLE_RegisterCommand(c, "capability", "prints a specified string of capability bits", CapabilityFunc, NULL);
-
-  if (CONSOLE_RegisterCommand(c, "spindle", "Moves the spindle", SpindleConsoleFunction, NULL) == 0) {
-    printf("Spindle command registered successfully.\n");
-  } else {
-    printf("Failed to register spindle command.\n");
-  }
 
   if (CONSOLE_RegisterCommand(c, "stepper", "Moves the stepper", StepperConsoleFunction , stepperArgs) == 0) {
     printf("Stepper command registered successfully.\n");
