@@ -53,6 +53,7 @@ void setSpeed(StepperTaskArgs_t* ctx, int stepsPerSecond) {
 
 // Start the timer for a given number of pulses (async, chunked if needed)
 void startTim1(int pulses) {
+	extern StepperTaskArgs_t* stepperArgs;
     int currentPulses = (pulses >= 65535) ? 65535 : pulses;
     stepperArgs->remainingPulses = pulses - currentPulses;
 
@@ -70,7 +71,7 @@ void startTim1(int pulses) {
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef* htim) {
 	if ((stepperArgs->doneClb != 0) && ((htim->Instance->SR & (1 << 2)) == 0)) {
 		if (stepperArgs->remainingPulses > 0) {
-			start_tim1(stepperArgs->remainingPulses);
+			startTim1(stepperArgs->remainingPulses);
 		}
 		else {
 			stepperArgs->doneClb(stepperArgs->h);
@@ -860,7 +861,7 @@ int StepTimerCancelAsync(void* pPWM)
     return -1; // Task was not running or invalid arguments
 }
 
-
+/*
 int StepSynchronous(void* pPWM, int dir, int numPulses) {
 	int direction = 1;
 	if(numPulses < 0){
@@ -884,7 +885,7 @@ int StepSynchronous(void* pPWM, int dir, int numPulses) {
   }
 
   return 0; // Success
-}
+}*/
 
 void StepperTask(void *pvParameters)
 {
