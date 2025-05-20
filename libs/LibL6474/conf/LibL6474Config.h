@@ -18,7 +18,7 @@
  * This DEFINE is used to switch from blocking synchronous mode to asynchronous non-blocking step mode. 
  * This changes the API behavior
  */
-#define LIBL6474_STEP_ASYNC  0
+#define LIBL6474_STEP_ASYNC  1
 
 /*!
  * This DEFINE is used to enable the lock guard and thread synchronization guard abstraction,

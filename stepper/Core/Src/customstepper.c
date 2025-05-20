@@ -43,7 +43,7 @@ static int CalcRelative(double relativePosition, StepperTaskArgs_t* ctx) {
 //// LETS GO GAMBLING!!!! (ASYNC)
 void setSpeed(StepperTaskArgs_t* ctx, int stepsPerSecond) {
     int clk = HAL_RCC_GetHCLKFreq();
-    int quotient = clk / (stepsPerSecond * 2); // scale by 2 -> tip from lecturer
+    int quotient = clk / (stepsPerSecond * 2); // scale by 2 -> rising/falling edge
     int i = 0;
     while ((quotient / (i + 1)) > 65535) i++;
     __HAL_TIM_SET_PRESCALER(ctx->htim4Handle, i);
@@ -52,53 +52,60 @@ void setSpeed(StepperTaskArgs_t* ctx, int stepsPerSecond) {
 }
 
 // Start the timer for a given number of pulses (async, chunked if needed)
-void startTim1(StepperTaskArgs_t* ctx, int pulses) {
+void startTim1(int pulses) {
     int currentPulses = (pulses >= 65535) ? 65535 : pulses;
-    ctx->remainingPulses = pulses - currentPulses;
+    stepperArgs->remainingPulses = pulses - currentPulses;
 
     if (currentPulses > 0) {
-        HAL_TIM_OnePulse_Stop_IT(ctx->htim1Handle, TIM_CHANNEL_1);
-        __HAL_TIM_SET_AUTORELOAD(ctx->htim1Handle, currentPulses);
-        HAL_TIM_GenerateEvent(ctx->htim1Handle, TIM_EVENTSOURCE_UPDATE);
-        HAL_TIM_OnePulse_Start_IT(ctx->htim1Handle, TIM_CHANNEL_1);
-        __HAL_TIM_ENABLE(ctx->htim1Handle);
+        HAL_TIM_OnePulse_Stop_IT(stepperArgs->htim1Handle, TIM_CHANNEL_1);
+        __HAL_TIM_SET_AUTORELOAD(stepperArgs->htim1Handle, currentPulses);
+        HAL_TIM_GenerateEvent(stepperArgs->htim1Handle, TIM_EVENTSOURCE_UPDATE);
+        HAL_TIM_OnePulse_Start_IT(stepperArgs->htim1Handle, TIM_CHANNEL_1);
+        __HAL_TIM_ENABLE(stepperArgs->htim1Handle);
     } else {
-        if (ctx->doneClb) ctx->doneClb(ctx->h);
+        if (stepperArgs->doneClb) stepperArgs->doneClb(stepperArgs->h);
     }
 }
 
-// This should be called from HAL_TIM_PWM_PulseFinishedCallback
-void stepperTimPulseFinishedCallback(StepperTaskArgs_t* ctx, TIM_HandleTypeDef* htim) {
-    if (ctx->doneClb && ((htim->Instance->SR & (1 << 2)) == 0)) {
-        if (ctx->remainingPulses > 0) {
-            startTim1(ctx, ctx->remainingPulses);
-        } else {
-            ctx->doneClb(ctx->h);
-            ctx->currentlyrunning = 0;
-        }
-    }
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef* htim) {
+	if ((stepperArgs->doneClb != 0) && ((htim->Instance->SR & (1 << 2)) == 0)) {
+		if (stepperArgs->remainingPulses > 0) {
+			start_tim1(stepperArgs->remainingPulses);
+		}
+		else {
+			stepperArgs->doneClb(stepperArgs->h);
+			stepperArgs->currentlyrunning = 0;
+		}
+	}
 }
 
 // Async stepper start (non-blocking)
-int stepAsync(StepperTaskArgs_t* ctx, int dir, unsigned int numPulses, void (*doneClb)(L6474_Handle_t)) {
-    ctx->currentlyrunning = 1;
-    ctx->doneClb = doneClb;
+static int stepAsync(void* pPWM, int dir, unsigned int numPulses, void (*doneClb)(L6474_Handle_t), L6474_Handle_t h) {
+  (void)pPWM;
+	(void)h;  
+  stepperArgs->currentlyrunning = 1;
+  stepperArgs->doneClb = doneClb;
 
     HAL_GPIO_WritePin(STEP_DIR_GPIO_Port, STEP_DIR_Pin, dir);
 
-    startTim1(ctx, numPulses);
+    startTim1(numPulses);
 
     return 0;
 }
 
 // Cancel async stepper operation
-int stepCancelAsync(StepperTaskArgs_t* ctx) {
-    if (ctx->currentlyrunning) {
-        HAL_TIM_OnePulse_Stop_IT(ctx->htim1Handle, TIM_CHANNEL_1);
-        if (ctx->doneClb) ctx->doneClb(ctx->h);
-        ctx->currentlyrunning = 0;
-    }
-    return 0;
+
+static int stepCancelAsync(void* pPWM)
+{
+	(void)pPWM;
+
+	if (stepperArgs->currentlyrunning) {
+		HAL_TIM_OnePulse_Stop_IT(stepperArgs->htim1Handle, TIM_CHANNEL_1);
+		stepperArgs->doneClb(stepperArgs->h);
+    stepperArgs->currentlyrunning = 0;
+	}
+
+	return 0;
 }
 
 
@@ -328,6 +335,28 @@ static int configParams(StepperTaskArgs_t* ctx, StepperCtrlCommand_t* cmd) {
         printf("Invalid parameter\r\nFAIL\r\n");
         return -1;
     }
+}
+static int reportStatus()
+{
+    L6474_Status_t driverStatus;
+    L6474_GetStatus(stepperArgs->h, &driverStatus);
+
+    unsigned int statusBits = 0;
+    statusBits |= (driverStatus.DIR ? (1 << 0) : 0);
+    statusBits |= (driverStatus.HIGHZ ? (1 << 1) : 0);
+    statusBits |= (driverStatus.NOTPERF_CMD ? (1 << 2) : 0);
+    statusBits |= (driverStatus.OCD ? (1 << 3) : 0);
+    statusBits |= (driverStatus.ONGOING ? (1 << 4) : 0);
+    statusBits |= (driverStatus.TH_SD ? (1 << 5) : 0);
+    statusBits |= (driverStatus.TH_WARN ? (1 << 6) : 0);
+    statusBits |= (driverStatus.UVLO ? (1 << 7) : 0);
+    statusBits |= (driverStatus.WRONG_CMD ? (1 << 8) : 0);
+
+    printf("0x%01X\r\n", stepperArgs->powered);
+    printf("0x%04X\r\n", statusBits);
+    printf("%d\r\n", stepperArgs->currentlyrunning);
+
+    return 0;
 }
 //reset function for a steppah
 static int reset(StepperTaskArgs_t* stepper_ctx) {
@@ -640,7 +669,7 @@ case cctMOVE_WITH_SPEED: {
 
           args->currentPosition = 0.0;
           printf("Homing complete: Home position set to 0.0 mm\r\n");
-
+          args->referenced = 1; // Set homed
           // Move away from the limit switch slightly to avoid re-triggering
           if (L6474_StepIncremental(handle, stepspermm) != 0) {
               printf("Error moving away from limit switch\r\nFAIL\r\n");
@@ -682,11 +711,12 @@ case cctMOVE_WITH_SPEED: {
           break;
       }
   case cctRESET:
-  //just rerun steppertask to recreate the stepper instance
-      if (xTaskCreate(StepperTask, "StepperTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
-        printf("Failed to create StepperTask\r\n");
-        //Error_Handler();
-      }
+    reset(args);
+    args->currentlyrunning = 0;
+    args->referenced = 0;
+    args->powered = 0;
+    printf("Stepper reset\r\nOK\r\n");
+    break;
   case cctREFERENCE_SKIP:
       // Handle reference skip
       printf("Skipping reference\r\n");
@@ -830,61 +860,6 @@ int StepTimerCancelAsync(void* pPWM)
     return -1; // Task was not running or invalid arguments
 }
 
-void vStepperPulseTask(void* pvParameters) {
-    StepperTaskArgs_t* args = (StepperTaskArgs_t*)pvParameters;
-
-    // Store the current task handle in the arguments
-    args->taskHandle = xTaskGetCurrentTaskHandle();
-
-    /* Set direction (beispielhaft über pGPO)
-    if (args->h.pGPO) {
-        // Pseudocode: setDirection(args->h.pGPO, args->dir);
-    }*/
-
-    // Pulse loop
-    for (unsigned int i = 0; i < args->numPulses; ++i) {
-        // Set STEP_PULSE pin high
-        HAL_GPIO_WritePin(STEP_PULSE_GPIO_Port, STEP_PULSE_Pin, GPIO_PIN_SET);
-        vTaskDelay(pdMS_TO_TICKS(1)); // 1 ms High
-
-        // Set STEP_PULSE pin low
-        HAL_GPIO_WritePin(STEP_PULSE_GPIO_Port, STEP_PULSE_Pin, GPIO_PIN_RESET);
-        vTaskDelay(pdMS_TO_TICKS(1)); // 1 ms Low
-    }
-
-    // Call the done callback
-    if (args->doneClb) {
-        args->doneClb(args->h);
-    }
-
-    // Free memory
-    vPortFree(args);
-
-    vTaskDelete(NULL);
-}
-
-int StepTimerAsync(void* pPWM, int dir, unsigned int numPulses, void (*doneClb)(L6474_Handle_t), L6474_Handle_t h) {
-    StepperTaskArgs_t* args = pvPortMalloc(sizeof(StepperTaskArgs_t));
-    if (!args) return -1;  // malloc failed
-
-    args->pPWM      = pPWM;
-    args->dir       = dir;
-    args->numPulses = numPulses;
-    args->doneClb   = doneClb;
-    args->h         = h;
-    args->taskHandle = NULL; // Initialize the task handle to NULL
-
-    BaseType_t res = xTaskCreate(
-        vStepperPulseTask,
-        "StepperTask",
-        configMINIMAL_STACK_SIZE + 128,
-        args,
-        tskIDLE_PRIORITY + 1,
-        NULL
-    );
-
-    return (res == pdPASS) ? 0 : -1;
-}
 
 int StepSynchronous(void* pPWM, int dir, int numPulses) {
 	int direction = 1;

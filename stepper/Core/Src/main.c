@@ -245,6 +245,8 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
+  TIM_HandleTypeDef* htim_copy = &htim1;
+
   /* USER CODE BEGIN TIM1_Init 2 */
 
   /* USER CODE END TIM1_Init 2 */
