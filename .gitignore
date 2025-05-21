@@ -25,4 +25,5 @@ subdir.mk
 makefile
 stepper/Debug
 .vscode/*
+*.launch
 fixme.bat
