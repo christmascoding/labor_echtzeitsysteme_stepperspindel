@@ -17,3 +17,13 @@
 *.swo*
 *.elf.*
 *.su
+*.d
+*.o
+*.su
+*.cyclo
+subdir.mk
+makefile
+stepper/Debug
+.vscode/*
+*.launch
+fixme.bat
