@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#define HOMING_SPEED 5000
+#define DEFAULT_RUN_SPEED 4000
+
 extern SPI_HandleTypeDef hspi1;
 extern L6474_Handle_t stepperHandle; 
 
@@ -137,7 +140,7 @@ static int powerEnable(StepperTaskArgs_t* context, StepperCtrlCommand_t* cmd) {
 // config parameter hack function
 static int configParams(StepperTaskArgs_t* ctx, StepperCtrlCommand_t* cmd) {
     const char* param = cmd->request.args.asConfigParameter.parameter;
-    int has_value = cmd->request.args.asConfigParameter.value_set;  // Use a flag to indicate if value is set (add this to your struct if needed)
+    int has_value = cmd->request.args.asConfigParameter.value_set;   
     int value = cmd->request.args.asConfigParameter.value;
 
     // POWERENA
@@ -506,17 +509,20 @@ else if (strcmp(argv[0], "reference") == 0) {
         cmd.request.args.asConfigPowerEnable.powerEnable = atoi(argv[3]);
       }
     } else {
-      cmd.head.type = cctCONFIG_PARAMETER; // Matches "stepper config <parameter> [-v <value>]"
-      strncpy(cmd.request.args.asConfigParameter.parameter, argv[1], sizeof(cmd.request.args.asConfigParameter.parameter) - 1);
+        cmd.head.type = cctCONFIG_PARAMETER; // Matches "stepper config <parameter> [-v <value>]"
+        strncpy(cmd.request.args.asConfigParameter.parameter, argv[1], sizeof(cmd.request.args.asConfigParameter.parameter) - 1);
 
-      if (argc > 2 && strcmp(argv[2], "-v") == 0) {
+        if (argc > 2 && strcmp(argv[2], "-v") == 0) {
         if (argc < 4) {
-          // Missing value for parameter
-          printf("missing value for parameter config\r\nFAIL");
-          return -1;
+            // Missing value for parameter
+            printf("missing value for parameter config\r\nFAIL");
+            return -1;
         }
         cmd.request.args.asConfigParameter.value = atoi(argv[3]);
-      }
+        cmd.request.args.asConfigParameter.value_set = 1;
+        } else {
+        cmd.request.args.asConfigParameter.value_set = 0;
+        }
     }
   } 
   else if(strcmp(argv[0], "reset") == 0) {
@@ -554,6 +560,8 @@ switch (cmd.head.type) {
         break;
     }
 
+    setSpeed(args, DEFAULT_RUN_SPEED); // default speed
+
     int result = L6474_StepIncremental(args->h, steps);
     if (result == 0) {
         printf("Relative move command executed successfully\r\nOK\r\n");
@@ -587,6 +595,8 @@ case cctMOVE_ABSOLUTE: {
         response.code = -1;
         break;
     }
+
+    setSpeed(args, DEFAULT_RUN_SPEED); // default speed
 
     int result = L6474_StepIncremental(args->h, steps);
     if (result == 0) {
@@ -642,75 +652,95 @@ case cctMOVE_WITH_SPEED: {
 }
     case cctREFERENCE_TIMEOUT:
     case cctREFERENCE_ENABLE: 
-      {
-          int timeout = 0;
-          if(cmd.head.type == cctREFERENCE_TIMEOUT){
-              timeout = cmd.request.args.asReferenceWithTimeout.timeout; // timeout in seconds
-          }
+    {
+        // Get timeout from command if present, else use args->timeout_ms or 0
+        uint32_t timeout_ms = 0;
+        if (cmd.head.type == cctREFERENCE_TIMEOUT) {
+            timeout_ms = cmd.request.args.asReferenceWithTimeout.timeout;
+            args->timeout_ms = timeout_ms;
+        } else if (args->timeout_ms > 0) {
+            timeout_ms = args->timeout_ms;
+        }
 
-          printf("Starting homing procedure...\r\n");
-          uint32_t startTick = xTaskGetTickCount();
-          bool timeoutReached = false;
+        printf("Starting homing procedure...\r\n");
+        int result = 0;
+        uint32_t start_time = HAL_GetTick();
 
-          // Move towards the limit switch (home position)
-          while (HAL_GPIO_ReadPin(REFERENCE_MARK_GPIO_Port, REFERENCE_MARK_Pin) == GPIO_PIN_SET) {
-              if (timeout > 0 && (xTaskGetTickCount() - startTick) > pdMS_TO_TICKS(timeout * 1000)) {
-                  printf("Timeout during homing\r\nFAIL\r\n");
-                  timeoutReached = true;
-                  break;
-              }
-              if (L6474_StepIncremental(handle, -10) != 0) {
-                  printf("Error during homing\r\nFAIL\r\n");
-                  return -1;
-              }
-              vTaskDelay(pdMS_TO_TICKS(2));
-          }
+        // Power on stepper
+        result |= L6474_SetPowerOutputs(handle, 1);
+        args->powered = 1;
+        setSpeed(args,HOMING_SPEED );
 
-          if (timeoutReached) break;
+        // If at limit switch, move away first
+        if (HAL_GPIO_ReadPin(LIMIT_SWITCH_GPIO_Port, LIMIT_SWITCH_Pin) == GPIO_PIN_RESET) {
+            printf("At limit switch, moving away before reference run...\r\n");
+            L6474_StepIncremental(handle, -5000);
+            while (HAL_GPIO_ReadPin(LIMIT_SWITCH_GPIO_Port, LIMIT_SWITCH_Pin) == GPIO_PIN_RESET) {
+                if (timeout_ms > 0 && HAL_GetTick() - start_time > timeout_ms) {
+                    stepCancelAsync(args);
+                    printf("Timeout while moving away from limit switch\r\nFAIL\r\n");
+                    return -1;
+                }
+            }
+            stepCancelAsync(args);
+        }
 
-          args->currentPosition = 0.0;
-          printf("Homing complete: Home position set to 0.0 mm\r\n");
-          args->referenced = 1; // Set homed
-          // Move away from the limit switch slightly to avoid re-triggering
-          if (L6474_StepIncremental(handle, stepspermm) != 0) {
-              printf("Error moving away from limit switch\r\nFAIL\r\n");
-              return -1;
-          }
+        // If already at reference switch, move off it
+        if (HAL_GPIO_ReadPin(REFERENCE_MARK_GPIO_Port, REFERENCE_MARK_Pin) == GPIO_PIN_RESET) {
+            L6474_StepIncremental(handle, 100000000);
+            while (HAL_GPIO_ReadPin(REFERENCE_MARK_GPIO_Port, REFERENCE_MARK_Pin) == GPIO_PIN_RESET) {
+                if (timeout_ms > 0 && HAL_GetTick() - start_time > timeout_ms) {
+                    stepCancelAsync(args);
+                    printf("Timeout while waiting for reference switch\r\nFAIL\r\n");
+                    return -1;
+                }
+            }
+            stepCancelAsync(args);
+        }
 
-          // Move towards the reference switch (max position)
-          int stepsToMax = 0;
-          startTick = xTaskGetTickCount();
-          timeoutReached = false;
-          while (HAL_GPIO_ReadPin(LIMIT_SWITCH_GPIO_Port, LIMIT_SWITCH_Pin) == GPIO_PIN_SET) {
-              if (timeout > 0 && (xTaskGetTickCount() - startTick) > pdMS_TO_TICKS(timeout * 1000)) {
-                  printf("Timeout during max position search\r\nFAIL\r\n");
-                  timeoutReached = true;
-                  break;
-              }
-              if (L6474_StepIncremental(handle, 10) != 0) {
-                  printf("Error during homing\r\nFAIL\r\n");
-                  return -1;
-              }
-              stepsToMax++;
-              vTaskDelay(pdMS_TO_TICKS(2));
-          }
+        // Move to reference switch
+        L6474_StepIncremental(handle, -1000000000);
+        while (HAL_GPIO_ReadPin(REFERENCE_MARK_GPIO_Port, REFERENCE_MARK_Pin) != GPIO_PIN_RESET) {
+            if (timeout_ms > 0 && HAL_GetTick() - start_time > timeout_ms) {
+                stepCancelAsync(args);
+                printf("Timeout while waiting for reference switch\r\nFAIL\r\n");
+                return -1;
+            }
+        }
+        stepCancelAsync(args);
 
-          if (timeoutReached) break;
+        // Set reference position
+        L6474_SetAbsolutePosition(handle, 800);
+        args->position_min_steps = 800;
+        args->position_ref_steps = 800;
 
-          stepperArgs->MAXPOS = (double)stepsToMax / stepspermm;
-          stepperArgs->currentPosition = stepperArgs->MAXPOS;
-          printf("Homing complete: Max position set to %.2f mm\r\n", stepperArgs->MAXPOS);
+        // Move to limit switch from reference
+        int step_amt = 0;
+        uint32_t track_timer_start = HAL_GetTick();
+        L6474_StepIncremental(handle, 1000000000);
+        while (HAL_GPIO_ReadPin(LIMIT_SWITCH_GPIO_Port, LIMIT_SWITCH_Pin) != GPIO_PIN_RESET) {
+            step_amt++;
+            if (timeout_ms > 0 && HAL_GetTick() - start_time > timeout_ms) {
+                stepCancelAsync(args);
+                printf("Timeout while moving to limit switch\r\nFAIL\r\n");
+                return -1;
+            }
+        }
+        uint32_t track_timer_stop = HAL_GetTick();
+        stepCancelAsync(args);
 
-          // Move away from the reference switch slightly to avoid re-triggering
-          if (L6474_StepIncremental(handle, -stepspermm) != 0) {
-              printf("Error moving away from reference switch\r\nFAIL\r\n");
-              return -1;
-          }
+        // Get max position
+        int abs_pos = 0;
+        L6474_GetAbsolutePosition(handle, &abs_pos);
+        args->position_max_steps = abs_pos;
 
-          stepperArgs->homed = true;
-          printf("Homing procedure completed successfully\r\nOK\r\n");
-          break;
-      }
+        // Optionally calculate mm_per_step, mm_per_sec, etc. if needed
+
+        args->referenced = 1;
+        args->homed = true;
+        printf("Homing procedure completed successfully\r\nOK\r\n");
+        break;
+    }
   case cctRESET:
     reset(args);
     args->currentlyrunning = 0;
@@ -840,7 +870,7 @@ static void StepLibraryDelay(unsigned int ms)
   L6474_Handle_t h;
   TaskHandle_t taskHandle; // task handle so it can be cancelled
 } StepperTaskArgs_t;*/
-
+/*
 int StepTimerCancelAsync(void* pPWM)
 {
     StepperTaskArgs_t* args = (StepperTaskArgs_t*)pPWM; // Cast pPWM to StepperTaskArgs_t*
@@ -859,7 +889,7 @@ int StepTimerCancelAsync(void* pPWM)
     }
 
     return -1; // Task was not running or invalid arguments
-}
+}*/
 
 /*
 int StepSynchronous(void* pPWM, int dir, int numPulses) {

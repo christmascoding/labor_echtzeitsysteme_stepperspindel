@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define STEPS_PER_TURN 200
+#define STEPS_PER_TURN 180
 #define RESOLUTION 16
 #define MM_PER_TURN 4
 
@@ -72,7 +72,7 @@ typedef struct {
     int dir;
     unsigned int numPulses;
     void (*doneClb)(L6474_Handle_t); //callback for fuck sake
-    L6474_Handle_t h;
+    L6474_Handle_t h;   
     TaskHandle_t taskHandle;
     double currentPosition;
     bool homed;              // Whether the stepper has been homed
@@ -89,6 +89,7 @@ typedef struct {
     TIM_HandleTypeDef* htim1Handle; // i want to kill myself 
     TIM_HandleTypeDef* htim4Handle; // TWO HANDLES POWER OMG 
     int remainingPulses;
+    uint32_t timeout_ms; // Only if needed
 } StepperTaskArgs_t;
 
 typedef enum
