@@ -10,6 +10,7 @@ extern "C" {
 #endif
 
 void SpindleTask(void* pvParameters);
+//void init_spindle(ConsoleHandle_t console_handle, TIM_HandleTypeDef tim_handle);
 
 
 

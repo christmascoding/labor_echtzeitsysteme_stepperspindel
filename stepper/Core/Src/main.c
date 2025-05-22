@@ -67,19 +67,7 @@ StepperTaskArgs_t* stepperArgs = NULL;
 
 
 /* USER CODE BEGIN PV */
-int initConsole() {
-  c = CONSOLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 5  );
 
-  //CONSOLE_RegisterCommand(c, "capability", "prints a specified string of capability bits", CapabilityFunc, NULL);
-
-  if (CONSOLE_RegisterCommand(c, "stepper", "Moves the stepper", StepperConsoleFunction , stepperArgs) == 0) {
-    printf("Stepper command registered successfully.\n");
-  } else {
-    printf("Failed to register stepper command.\n");
-  }
-  
-  
-}
 
 /* USER CODE END PV */
 
@@ -204,14 +192,19 @@ int main(void)
       printf("Failed to create StepperTask\r\n");
       Error_Handler();
   }
-  // Create Spindle Task
   ConsoleHandle_t console_handle = CONSOLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 5  );
 
+
+  // Create Spindle Task
+
   init_spindle(console_handle, htim2);
+
+
   
 
   (void)CapabilityFunc;
-  initConsole();
+  
+  initConsole(console_handle);
 
   vTaskStartScheduler();
   /* USER CODE END 2 */
@@ -233,24 +226,17 @@ int main(void)
   * @retval None
   */
 
-int initConsole() {
-  c = CONSOLE_CreateInstance( 4*configMINIMAL_STACK_SIZE, configMAX_PRIORITIES - 5  );
 
+
+int initConsole(ConsoleHandle_t c) {
   CONSOLE_RegisterCommand(c, "capability", "prints a specified string of capability bits", CapabilityFunc, NULL);
 
-  if (CONSOLE_RegisterCommand(c, "spindle", "Moves the spindle", SpindleConsoleFunction, NULL) == 0) {
-    printf("Spindle command registered successfully.\n");
-  } else {
-    printf("Failed to register spindle command.\n");
-  }
 
   if (CONSOLE_RegisterCommand(c, "stepper", "Moves the stepper", StepperConsoleFunction , stepperArgs) == 0) {
     printf("Stepper command registered successfully.\n");
   } else {
     printf("Failed to register stepper command.\n");
   }
-  
-  
 }
 
 
